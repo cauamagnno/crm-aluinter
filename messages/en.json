@@ -70,7 +70,9 @@
   "Dashboard": {
     "page": {
       "title": "Dashboard",
-      "description": "Live analytics across conversations, contacts, deals, broadcasts, and automations.",
+      "description": "Effort and result indicators for the book of business, with targets and RAG status.",
+      "descriptionOps": "Day-to-day volume: conversations, queue, pipeline and response time.",
+      "descriptionMkt": "Media and campaigns — numbers land when Meta Business Manager is connected.",
       "activeConversations": "Active Conversations",
       "newContactsToday": "New Contacts Today",
       "openDealsValue": "Open Deals Value",
@@ -130,6 +132,142 @@
     },
     "emptyState": {
       "title": "Not enough data yet"
+    },
+    "tabs": {
+      "gestao": "Management",
+      "operacao": "Operations",
+      "marketing": "Marketing"
+    },
+    "period": {
+      "today": "Today",
+      "week": "Week",
+      "month": "Month",
+      "from": "From",
+      "to": "To"
+    },
+    "operacao": {
+      "newContacts": "New contacts",
+      "messagesSent": "Messages sent",
+      "newInPeriod": "new in period",
+      "vsPrevious": "vs previous period",
+      "shortcuts": "Shortcuts",
+      "inbox": "Inbox",
+      "reply": "Reply now"
+    },
+    "gestao": {
+      "legendTitle": "How to read this board",
+      "legendBody": "Green, yellow and red follow Chapter 14. The CRM measures conversations, deals and funnel value. Easy remains the source for formal quotes, invoiced revenue, discount and purchases. Marketing comes later via Meta Business Manager.",
+      "healthTitle": "Book health",
+      "healthHint": "Eight indicators read for the selected period.",
+      "healthCount": "{count} {rag}",
+      "details": "Formula and owner",
+      "formulaLabel": "Formula",
+      "ownerLabel": "Owner",
+      "frequencyLabel": "Cadence",
+      "ofTarget": "{pct}% of target",
+      "effortTitle": "Effort indicators",
+      "effortHint": "What the consultant controls day to day.",
+      "resultTitle": "Result indicators",
+      "resultHint": "What the company wants: revenue, base and margin.",
+      "ownerConsultant": "Sales consultant",
+      "ownerSupervision": "Sales supervision",
+      "origin": {
+        "crm": "CRM",
+        "proxy": "CRM proxy",
+        "easy": "Easy"
+      },
+      "rag": {
+        "green": "Green",
+        "yellow": "Yellow",
+        "red": "Red",
+        "na": "No data"
+      },
+      "k1": {
+        "title": "Real conversations",
+        "target": "Target: 12 per day, per consultant",
+        "targetAvg": "Avg {avg}/day · target 12",
+        "formula": "WhatsApp threads with a two-way exchange (customer + consultant) today, per consultant.",
+        "frequency": "Daily, read in the next-morning huddle",
+        "hint": "The playbook counts decision-maker calls in the close-the-day block. Until call logging exists, this uses a real WhatsApp conversation."
+      },
+      "k2": {
+        "title": "Quotes sent",
+        "target": "Target: 12 per week, per consultant",
+        "targetPeriod": "Period target: {target}",
+        "formula": "Deals created in the pipeline this week.",
+        "frequency": "Weekly, read in the Monday alignment",
+        "hint": "The official number comes from Easy. Until that integration exists, the CRM counts new pipeline deals."
+      },
+      "k3": {
+        "title": "Curve A coverage",
+        "target": "Target: 100% of Curve A touched every week",
+        "formula": "Curve A clients touched this week ÷ Curve A clients in the book.",
+        "frequency": "Weekly",
+        "hintEmpty": "Tag clients with “Curva A” in Contacts. Without that Chapter 16 classification, this KPI stays empty.",
+        "hintReady": "{contacted} of {total} Curve A clients were touched this week."
+      },
+      "k4": {
+        "title": "Follow-up cadence adherence",
+        "target": "Target: 90% or more",
+        "formula": "Open deals with a touch in the last 7 days ÷ open deals.",
+        "frequency": "Weekly",
+        "hint": "{onCadence} of {open} open deals had a touch inside the cadence (CRM message or deal update)."
+      },
+      "k5": {
+        "title": "Revenue vs target",
+        "target": "Portfolio target: {target} / month",
+        "formula": "Won deals this month ÷ monthly target, read against calendar pace.",
+        "frequency": "Daily on the board, weekly in the reading",
+        "hint": "This sums won pipeline deals. Invoiced revenue (R$400k per book / R$4M total) comes from Easy."
+      },
+      "k6": {
+        "title": "New and reactivated this month",
+        "target": "Target: 12–13 per consultant, 125 for the team",
+        "formula": "First win this month + clients with no win for 90 days who won again.",
+        "frequency": "Weekly",
+        "hint": "{novos} new and {reactivated} reactivated from won CRM deals. The official 90-day ruler is an Easy purchase."
+      },
+      "k7": {
+        "title": "Average discount given",
+        "target": "Target: below the consultant’s historical average (week 6)",
+        "formula": "Weighted average discount vs list price, per consultant, this month.",
+        "frequency": "Weekly",
+        "hint": "The CRM does not store discount or list price. This KPI only closes with Easy."
+      },
+      "k8": {
+        "title": "Base retraction",
+        "target": "No Curve A client in retraction without an action plan",
+        "formula": "Active clients who bought this month less than 70% of the prior 3-month average.",
+        "frequency": "Monthly, reviewed weekly by exception",
+        "hint": "Proxy from won CRM deals. There is no action-plan field yet — Easy remains the real purchase."
+      },
+      "loadError": "Could not load the indicators. Check that the local database is running."
+    },
+    "marketing": {
+      "bannerTitle": "Marketing — screens ready, data from BM",
+      "bannerBody": "This tab is the media board layout. Spend, leads, CPL and campaigns fill in when Meta Business Manager is connected. The CRM still owns the conversation and the deal after the lead.",
+      "spend": "Spend",
+      "leads": "Leads",
+      "cpl": "CPL",
+      "roas": "Return",
+      "awaitingBm": "Waiting on BM",
+      "funnelTitle": "Media → CRM funnel",
+      "funnelHint": "The first three steps come from BM. Conversations and deals already live in this CRM.",
+      "funnel": {
+        "impressions": "Impressions",
+        "clicks": "Clicks",
+        "leads": "Leads",
+        "conversations": "Conversations",
+        "deals": "Deals"
+      },
+      "campaignsTitle": "Campaigns",
+      "campaignsHint": "Active BM campaigns with spend and cost per lead.",
+      "colCampaign": "Campaign",
+      "colSpend": "Spend",
+      "colLeads": "Leads",
+      "colCpl": "CPL",
+      "colStatus": "Status",
+      "campaignsEmpty": "No campaigns loaded. Connect BM to fill this table."
     }
   },
   "Inbox": {
@@ -384,9 +522,9 @@
         "custom": "Custom Fields",
         "deals": "Deals",
         "tags": "Tags",
-      "noTags": "No tags",
-      "noDeals": "No deals",
-      "addNotePlaceholder": "Add a note..."
+        "noTags": "No tags",
+        "noDeals": "No deals",
+        "addNotePlaceholder": "Add a note..."
       },
       "actions": {
         "edit": "Edit",
@@ -1369,13 +1507,11 @@
       "deleteLocallyAria": "Delete template locally",
       "deleteMetaLocallyTitle": "Delete from Meta and locally",
       "deleteLocallyTitle": "Delete locally",
-      
       "dialogEditTitle": "Edit Message Template",
       "dialogNewTitle": "New Message Template",
       "dialogEditDesc": "Save your changes to re-submit to Meta. Status will flip back to PENDING during review.",
       "dialogNewDesc": "Build a template and submit it to Meta for approval. Once approved, you can use it in broadcasts and the inbox.",
       "authWarning": "AUTHENTICATION templates have a fixed body + OTP button shape that needs a different builder. Create them in Meta WhatsApp Manager for now and use <bold>Sync from Meta</bold> to bring them in.",
-      
       "templateName": "Template Name",
       "namePlaceholder": "e.g. order_confirmation",
       "nameFixed": "Name is fixed once a template exists on Meta — create a new template to change it.",
@@ -1384,7 +1520,6 @@
       "language": "Language",
       "langFixed": "Language is fixed once a template exists on Meta.",
       "langHint": "Must match the exact code on Meta — <code>en_US</code> and <code>en</code> are distinct.",
-      
       "header": "Header",
       "headerNone": "None",
       "headerText": "Text",
@@ -1394,7 +1529,6 @@
       "headerTextPlaceholder": "Header text (max 60 chars, optional {{1}})",
       "headerSampleAria": "Sample value for header variable",
       "headerSamplePlaceholder": "Sample value for {{1}} (required for Meta review)",
-      
       "uploadImage": "Upload image",
       "uploadHint": "JPEG or PNG, ≤5 MB",
       "mediaUrlPlaceholder": "https://… (or paste a public {format} link)",
@@ -1402,17 +1536,14 @@
       "mediaHint": "Must be a publicly accessible HTTPS link. Meta fetches it once during review, so it needs to stay live for ~24 hrs.",
       "videoHint": " Recommended: MP4 / 3GPP, ≤16 MB, ≤60 seconds.",
       "documentHint": " Recommended: PDF, ≤100 MB.",
-      
       "bodyText": "Body Text",
       "bodyPlaceholder": "Hello {{1}}, your order {{2}} is confirmed.",
       "bodyHint": "Use {{1}}, {{2}} for variables (must be contiguous starting at {{1}}).",
       "sampleValues": "Sample values (Meta uses these to review your template)",
       "sampleAria": "Sample value for body variable {var}",
       "samplePlaceholder": "Sample for {var}",
-      
       "footer": "Footer (optional)",
       "footerPlaceholder": "Optional footer text (max 60 chars)",
-      
       "buttons": "Buttons (optional)",
       "addButton": "Add Button",
       "buttonsLimit": "Up to {max} buttons. QUICK_REPLY buttons must come before URL / phone / copy-code buttons.",
@@ -1425,19 +1556,16 @@
       "urlSamplePlaceholder": "Example value for {{1}} (required when URL has a variable)",
       "phonePlaceholder": "+15551234567",
       "codePlaceholder": "Example code (e.g. SUMMER20)",
-      
       "cancel": "Cancel",
       "saving": "Saving…",
       "submitting": "Submitting…",
       "saveResubmit": "Save & Resubmit",
       "submitApproval": "Submit for Approval",
-      
       "deleteDialogTitle": "Delete template?",
       "deleteMetaDesc": "\"{name}\" will be deleted from Meta and from wacrm. Active broadcasts using this template will start failing on their next send. This can't be undone.",
       "deleteLocalDesc": "\"{name}\" will be deleted from wacrm. It was never submitted to Meta, so no remote cleanup is needed.",
       "deleting": "Deleting…",
       "delete": "Delete",
-      
       "toastLoadFailed": "Failed to load templates",
       "toastSubmitFailed": "Failed to submit",
       "toastSubmitEditSuccess": "Edit submitted — Meta typically reviews within 24 hours.",
@@ -1583,7 +1711,6 @@
       "profileSaved": "Profile saved",
       "emailChangeFailed": "Email change failed: {message}",
       "profileSavedEmailCheck": "Profile saved — check your email to confirm the address change",
-      
       "passwordTitle": "Password",
       "passwordDesc": "Use at least {min} characters. You will stay signed in on this device after changing it.",
       "currentPassword": "Current password",
@@ -1597,7 +1724,6 @@
       "currentPasswordIncorrect": "Current password is incorrect",
       "passwordUpdateFailed": "Password update failed: {message}",
       "passwordUpdated": "Password updated",
-      
       "sessionsTitle": "Active sessions",
       "sessionsDesc": "Sign out of every device where you're logged in — including this one. Useful if you lost a laptop or shared your password.",
       "signOutAll": "Sign out of all devices",

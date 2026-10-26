@@ -22,6 +22,10 @@ services:
     # healthcheck below.
     environment:
       PORT: 3000
+    # Reach Supabase on the host (e.g. `supabase start`) — 127.0.0.1
+    # inside the container is the app itself, not your machine.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     # Host side only — HOST_PORT=8080 publishes the app on :8080.
     ports:
       - '${HOST_PORT:-3000}:3000'

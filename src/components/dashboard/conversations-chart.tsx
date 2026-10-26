@@ -5,16 +5,10 @@ import { MessageSquare } from 'lucide-react'
 import type { ConversationsSeriesPoint } from '@/lib/dashboard/types'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
-import { cn } from '@/lib/utils'
-
-type RangeDays = 7 | 30 | 90
 
 interface ConversationsChartProps {
-  /** Per-range data, so switching tabs never re-fetches. */
-  series: Record<RangeDays, ConversationsSeriesPoint[] | null>
+  data: ConversationsSeriesPoint[] | null
   loading: boolean
-  range: RangeDays
-  onRangeChange: (r: RangeDays) => void
 }
 
 // ------------------------------------------------------------
@@ -29,9 +23,8 @@ const PADDING = { top: 16, right: 16, bottom: 28, left: 40 }
 
 import { useTranslations } from 'next-intl'
 
-export function ConversationsChart({ series, loading, range, onRangeChange }: ConversationsChartProps) {
+export function ConversationsChart({ data, loading }: ConversationsChartProps) {
   const t = useTranslations('Dashboard.conversationsChart')
-  const data = series[range]
 
   // Memoise the max so per-day hover math doesn't recompute it.
   const { maxY, niceTicks } = useMemo(() => {
@@ -54,23 +47,6 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
         <div>
           <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">{t('description')}</p>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-          {[7, 30, 90].map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => onRangeChange(r as RangeDays)}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                range === r
-                  ? 'bg-secondary text-secondary-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {t('days', { count: r })}
-            </button>
-          ))}
         </div>
       </header>
 

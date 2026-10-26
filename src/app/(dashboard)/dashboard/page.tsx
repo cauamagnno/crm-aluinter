@@ -3,13 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
-import { formatCurrency } from '@/lib/currency'
-import {
-  MessageSquare,
-  UserPlus,
-  DollarSign,
-  Send,
-} from 'lucide-react'
+import { LayoutDashboard, Megaphone, Target } from 'lucide-react'
 
 import {
   loadActivity,
@@ -18,6 +12,8 @@ import {
   loadPipelineDonut,
   loadResponseTime,
 } from '@/lib/dashboard/queries'
+import { loadAluinterKpis, type AluinterKpiSnapshot } from '@/lib/dashboard/aluinter-kpis'
+import { periodLastDay, periodToday, type DashboardPeriod } from '@/lib/dashboard/period'
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
@@ -26,33 +22,30 @@ import type {
   ResponseTimeSummary,
 } from '@/lib/dashboard/types'
 
-import { MetricCard } from '@/components/dashboard/metric-card'
-import { SkeletonCard } from '@/components/dashboard/skeleton'
-import { QuickActions } from '@/components/dashboard/quick-actions'
-import { ConversationsChart } from '@/components/dashboard/conversations-chart'
-import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
-import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
-import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { GestaoPanel } from '@/components/dashboard/gestao-panel'
+import { MarketingPanel } from '@/components/dashboard/marketing-panel'
+import { OperacaoPanel } from '@/components/dashboard/operacao-panel'
+import { PeriodPicker } from '@/components/dashboard/period-picker'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { useTranslations } from 'next-intl'
 
-type RangeDays = 7 | 30 | 90
+type DashTab = 'gestao' | 'operacao' | 'marketing'
 
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
+  const tTabs = useTranslations('Dashboard.tabs')
   const { defaultCurrency } = useAuth()
+  const [tab, setTab] = useState<DashTab>('gestao')
+  const [period, setPeriod] = useState<DashboardPeriod>(() => periodToday())
+
+  const [kpis, setKpis] = useState<AluinterKpiSnapshot | null>(null)
+  const [kpisLoading, setKpisLoading] = useState(true)
+
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
 
-  const [range, setRange] = useState<RangeDays>(30)
-  // Keep a cache per range so switching tabs doesn't re-fetch what we
-  // already have. Ranges the user hasn't opened yet stay null and
-  // trigger a fetch on first view.
-  const [series, setSeries] = useState<Record<RangeDays, ConversationsSeriesPoint[] | null>>({
-    7: null,
-    30: null,
-    90: null,
-  })
+  const [series, setSeries] = useState<ConversationsSeriesPoint[] | null>(null)
   const [seriesLoading, setSeriesLoading] = useState(true)
 
   const [pipeline, setPipeline] = useState<PipelineDonutData | null>(null)
@@ -64,19 +57,27 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<ActivityItem[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(true)
 
-  const loadAll = useCallback(() => {
+  const loadAll = useCallback((range: DashboardPeriod) => {
     const db = createClient()
+    const asOf = periodLastDay(range)
 
-    // Kick everything off in parallel. Each block has its own
-    // setState + finally so a slow query doesn't hold up faster
-    // sections — each widget shows its own skeleton independently.
-    void loadMetrics(db)
+    setKpisLoading(true)
+    setMetricsLoading(true)
+    setSeriesLoading(true)
+    setResponseTimeLoading(true)
+
+    void loadAluinterKpis(db, range)
+      .then((k) => setKpis(k))
+      .catch((err) => console.error('[dashboard] aluinter kpis failed:', err))
+      .finally(() => setKpisLoading(false))
+
+    void loadMetrics(db, range)
       .then((m) => setMetrics(m))
       .catch((err) => console.error('[dashboard] metrics failed:', err))
       .finally(() => setMetricsLoading(false))
 
-    void loadConversationsSeries(db, 30)
-      .then((s) => setSeries((prev) => ({ ...prev, 30: s })))
+    void loadConversationsSeries(db, range)
+      .then((s) => setSeries(s))
       .catch((err) => console.error('[dashboard] series failed:', err))
       .finally(() => setSeriesLoading(false))
 
@@ -85,14 +86,11 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] pipeline failed:', err))
       .finally(() => setPipelineLoading(false))
 
-    void loadResponseTime(db)
+    void loadResponseTime(db, asOf)
       .then((r) => setResponseTime(r))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
 
-    // Fetch up to 50 so the biggest page-size option in the feed
-    // (50 rows) is already in memory — switching sizes then becomes
-    // a pure client-side slice with no extra round trip.
     void loadActivity(db, 50)
       .then((a) => setActivity(a))
       .catch((err) => console.error('[dashboard] activity failed:', err))
@@ -100,135 +98,66 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    loadAll()
-  }, [loadAll])
-
-  // Range switch handler — kept in an event callback (not an effect)
-  // so the setState calls stay out of the react-hooks/set-state-in-effect
-  // rule's way. The cached bucket check means switching back to a
-  // previously-viewed range is instant and doesn't re-fetch.
-  const handleRangeChange = useCallback(
-    (r: RangeDays) => {
-      setRange(r)
-      if (series[r] !== null) return
-      setSeriesLoading(true)
-      const db = createClient()
-      loadConversationsSeries(db, r)
-        .then((s) => setSeries((prev) => ({ ...prev, [r]: s })))
-        .catch((err) => console.error('[dashboard] series failed:', err))
-        .finally(() => setSeriesLoading(false))
-    },
-    [series],
-  )
+    loadAll(period)
+  }, [loadAll, period])
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('description')}
-        </p>
-      </div>
-
-      {/* Metric cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {metricsLoading || !metrics ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-        ) : (
-          <>
-            <MetricCard
-              title={t('activeConversations')}
-              value={metrics.activeConversations.current.toLocaleString()}
-              icon={MessageSquare}
-              delta={{
-                sign: metrics.activeConversations.previous,
-                label: deltaLabel(
-                  metrics.activeConversations.previous, 
-                  t('newTodayVsYesterday'), 
-                  t('noChange', { suffix: t('newTodayVsYesterday') })
-                ),
-              }}
-            />
-            <MetricCard
-              title={t('newContactsToday')}
-              value={metrics.newContactsToday.current.toLocaleString()}
-              icon={UserPlus}
-              delta={{
-                sign:
-                  metrics.newContactsToday.current - metrics.newContactsToday.previous,
-                label: deltaLabel(
-                  metrics.newContactsToday.current - metrics.newContactsToday.previous,
-                  t('vsYesterday'),
-                  t('noChange', { suffix: t('vsYesterday') })
-                ),
-              }}
-            />
-            <MetricCard
-              title={t('openDealsValue')}
-              value={formatCurrency(metrics.openDealsValue, defaultCurrency)}
-              icon={DollarSign}
-              subtitle={t('openDeals', { count: metrics.openDealsCount })}
-            />
-            <MetricCard
-              title={t('messagesSentToday')}
-              value={metrics.messagesSentToday.current.toLocaleString()}
-              icon={Send}
-              delta={{
-                sign:
-                  metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
-                label: deltaLabel(
-                  metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
-                  t('vsYesterday'),
-                  t('noChange', { suffix: t('vsYesterday') })
-                ),
-              }}
-            />
-          </>
-        )}
-      </div>
-
-      {/* Quick actions */}
-      <QuickActions />
-
-      {/* Charts row */}
-      {/* items-stretch (the grid default) stretches the two columns to
-          match the tallest sibling; adding h-full on each wrapper and
-          on the inner panels makes both cards actually fill that
-          stretched height so their rounded borders line up. Without
-          this, the pipeline card rendered at its natural (shorter)
-          height while the line chart drove the row height. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div className="h-full lg:col-span-3">
-          <ConversationsChart
-            series={series}
-            loading={seriesLoading}
-            range={range}
-            onRangeChange={handleRangeChange}
-          />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {tab === 'operacao' ? t('descriptionOps') : tab === 'marketing' ? t('descriptionMkt') : t('description')}
+          </p>
         </div>
-        <div className="h-full lg:col-span-2">
-          <PipelineDonut
-            data={pipeline}
-            loading={pipelineLoading}
+        {tab !== 'marketing' ? (
+          <PeriodPicker period={period} onChange={setPeriod} />
+        ) : null}
+      </div>
+
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as DashTab)}
+      >
+        <TabsList className="h-auto w-full flex-wrap justify-start sm:w-fit">
+          <TabsTrigger value="gestao" className="px-3">
+            <Target className="h-4 w-4" />
+            {tTabs('gestao')}
+          </TabsTrigger>
+          <TabsTrigger value="operacao" className="px-3">
+            <LayoutDashboard className="h-4 w-4" />
+            {tTabs('operacao')}
+          </TabsTrigger>
+          <TabsTrigger value="marketing" className="px-3">
+            <Megaphone className="h-4 w-4" />
+            {tTabs('marketing')}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="gestao" className="mt-5">
+          <GestaoPanel data={kpis} loading={kpisLoading} currency={defaultCurrency} />
+        </TabsContent>
+
+        <TabsContent value="operacao" className="mt-5">
+          <OperacaoPanel
+            metrics={metrics}
+            metricsLoading={metricsLoading}
+            series={series}
+            seriesLoading={seriesLoading}
+            pipeline={pipeline}
+            pipelineLoading={pipelineLoading}
+            responseTime={responseTime}
+            responseTimeLoading={responseTimeLoading}
+            activity={activity}
+            activityLoading={activityLoading}
             currency={defaultCurrency}
           />
-        </div>
-      </div>
+        </TabsContent>
 
-      {/* Response time */}
-      <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
-
-      {/* Activity feed */}
-      <ActivityFeed items={activity} loading={activityLoading} />
+        <TabsContent value="marketing" className="mt-5">
+          <MarketingPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   )
-}
-
-// ------------------------------------------------------------
-
-function deltaLabel(delta: number, suffix: string, noChangeLabel: string): string {
-  if (delta === 0) return noChangeLabel
-  const sign = delta > 0 ? '+' : ''
-  return `${sign}${delta.toLocaleString()} ${suffix}`
 }

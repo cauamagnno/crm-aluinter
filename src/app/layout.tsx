@@ -22,10 +22,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: "Aluinter",
+    template: "%s — Aluinter",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: "CRM Aluinter para WhatsApp.",
   robots: {
     index: false,
     follow: false,
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617",
+  themeColor: "#00A0F0",
   colorScheme: "dark light",
 };
 

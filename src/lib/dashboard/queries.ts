@@ -1,12 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  addLocalDays,
   daysAgoStart,
   DOW_SHORT_MON_FIRST,
-  lastNDayKeys,
+  eachLocalDay,
   localDayKey,
   mondayIndex,
-  startOfLocalDay,
 } from './date-utils'
+import { periodDays, type DashboardPeriod } from './period'
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
@@ -29,9 +30,12 @@ type DB = SupabaseClient
 
 // --- 1. Metric cards ---------------------------------------------------
 
-export async function loadMetrics(db: DB): Promise<MetricsBundle> {
-  const todayStart = startOfLocalDay().toISOString()
-  const yesterdayStart = daysAgoStart(1).toISOString()
+export async function loadMetrics(db: DB, period: DashboardPeriod): Promise<MetricsBundle> {
+  const start = period.start.toISOString()
+  const end = period.end.toISOString()
+  const days = periodDays(period)
+  const prevEnd = period.start
+  const prevStart = addLocalDays(period.start, -days)
 
   const [
     openConvCur,
@@ -48,31 +52,37 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       .from('conversations')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open')
-      .gte('created_at', todayStart),
+      .gte('created_at', start)
+      .lt('created_at', end),
     db
       .from('conversations')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+      .gte('created_at', prevStart.toISOString())
+      .lt('created_at', prevEnd.toISOString()),
     db
       .from('contacts')
       .select('id', { count: 'exact', head: true })
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
+      .gte('created_at', start)
+      .lt('created_at', end),
+    db
+      .from('contacts')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', prevStart.toISOString())
+      .lt('created_at', prevEnd.toISOString()),
     db.from('deals').select('value, status').eq('status', 'open'),
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('sender_type', 'agent')
-      .gte('created_at', todayStart),
+      .gte('created_at', start)
+      .lt('created_at', end),
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('sender_type', 'agent')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
+      .gte('created_at', prevStart.toISOString())
+      .lt('created_at', prevEnd.toISOString()),
   ])
 
   const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]
@@ -103,17 +113,17 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
 
 export async function loadConversationsSeries(
   db: DB,
-  rangeDays: number,
+  period: DashboardPeriod,
 ): Promise<ConversationsSeriesPoint[]> {
-  const start = daysAgoStart(rangeDays - 1).toISOString()
   const { data, error } = await db
     .from('messages')
     .select('created_at, sender_type')
-    .gte('created_at', start)
+    .gte('created_at', period.start.toISOString())
+    .lt('created_at', period.end.toISOString())
     .order('created_at', { ascending: true })
   if (error) throw error
 
-  const keys = lastNDayKeys(rangeDays)
+  const keys = eachLocalDay(period.start, period.end)
   const buckets = new Map<string, { incoming: number; outgoing: number }>()
   for (const k of keys) buckets.set(k, { incoming: 0, outgoing: 0 })
 
@@ -122,7 +132,7 @@ export async function loadConversationsSeries(
     const bucket = buckets.get(key)
     if (!bucket) continue
     if (row.sender_type === 'customer') bucket.incoming += 1
-    else bucket.outgoing += 1 // agent + bot both count as outgoing
+    else bucket.outgoing += 1
   }
 
   return keys.map((day) => ({ day, ...(buckets.get(day) ?? { incoming: 0, outgoing: 0 }) }))
@@ -169,13 +179,11 @@ export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
 
 // --- 4. Response time by day of week ----------------------------------
 
-export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
-  // Pull the last 14 days of messages in one shot, then walk per
-  // conversation to find each "first inbound" → "first subsequent
-  // outbound" pair. 14 days gives us both "this week" + "last week"
-  // with enough overlap if the user opens the dashboard late on a
-  // Monday.
-  const fourteenDaysAgo = daysAgoStart(13).toISOString()
+export async function loadResponseTime(
+  db: DB,
+  asOf: Date = new Date(),
+): Promise<ResponseTimeSummary> {
+  const fourteenDaysAgo = daysAgoStart(13, asOf).toISOString()
   const { data, error } = await db
     .from('messages')
     .select('conversation_id, sender_type, created_at')
@@ -216,9 +224,9 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
     }
   }
 
-  const now = new Date()
-  const thisWeekStart = daysAgoStart(mondayIndex(now))
-  const lastWeekStart = daysAgoStart(mondayIndex(now) + 7)
+  const now = asOf
+  const thisWeekStart = daysAgoStart(mondayIndex(now), now)
+  const lastWeekStart = daysAgoStart(mondayIndex(now) + 7, now)
 
   // Per-day-of-week buckets, averaged over both weeks' worth of data
   // so each bar has more samples to stand on. If a day has no samples

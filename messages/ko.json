@@ -70,7 +70,9 @@
   "Dashboard": {
     "page": {
       "title": "대시보드",
-      "description": "대화, 연락처, 딜, 브로드캐스트, 자동화 전반의 실시간 분석입니다.",
+      "description": "Effort and result indicators for the book of business, with targets and RAG status.",
+      "descriptionOps": "Day-to-day volume: conversations, queue, pipeline and response time.",
+      "descriptionMkt": "Media and campaigns — numbers land when Meta Business Manager is connected.",
       "activeConversations": "진행 중인 대화",
       "newContactsToday": "오늘의 신규 연락처",
       "openDealsValue": "진행 중인 딜 금액",
@@ -130,6 +132,142 @@
     },
     "emptyState": {
       "title": "아직 데이터가 충분하지 않습니다"
+    },
+    "tabs": {
+      "gestao": "Management",
+      "operacao": "Operations",
+      "marketing": "Marketing"
+    },
+    "period": {
+      "today": "Today",
+      "week": "Week",
+      "month": "Month",
+      "from": "From",
+      "to": "To"
+    },
+    "operacao": {
+      "newContacts": "New contacts",
+      "messagesSent": "Messages sent",
+      "newInPeriod": "new in period",
+      "vsPrevious": "vs previous period",
+      "shortcuts": "Shortcuts",
+      "inbox": "Inbox",
+      "reply": "Reply now"
+    },
+    "gestao": {
+      "legendTitle": "How to read this board",
+      "legendBody": "Green, yellow and red follow Chapter 14. The CRM measures conversations, deals and funnel value. Easy remains the source for formal quotes, invoiced revenue, discount and purchases. Marketing comes later via Meta Business Manager.",
+      "healthTitle": "Book health",
+      "healthHint": "Eight indicators read for the selected period.",
+      "healthCount": "{count} {rag}",
+      "details": "Formula and owner",
+      "formulaLabel": "Formula",
+      "ownerLabel": "Owner",
+      "frequencyLabel": "Cadence",
+      "ofTarget": "{pct}% of target",
+      "effortTitle": "Effort indicators",
+      "effortHint": "What the consultant controls day to day.",
+      "resultTitle": "Result indicators",
+      "resultHint": "What the company wants: revenue, base and margin.",
+      "ownerConsultant": "Sales consultant",
+      "ownerSupervision": "Sales supervision",
+      "origin": {
+        "crm": "CRM",
+        "proxy": "CRM proxy",
+        "easy": "Easy"
+      },
+      "rag": {
+        "green": "Green",
+        "yellow": "Yellow",
+        "red": "Red",
+        "na": "No data"
+      },
+      "k1": {
+        "title": "Real conversations",
+        "target": "Target: 12 per day, per consultant",
+        "targetAvg": "Avg {avg}/day · target 12",
+        "formula": "WhatsApp threads with a two-way exchange (customer + consultant) today, per consultant.",
+        "frequency": "Daily, read in the next-morning huddle",
+        "hint": "The playbook counts decision-maker calls in the close-the-day block. Until call logging exists, this uses a real WhatsApp conversation."
+      },
+      "k2": {
+        "title": "Quotes sent",
+        "target": "Target: 12 per week, per consultant",
+        "targetPeriod": "Period target: {target}",
+        "formula": "Deals created in the pipeline this week.",
+        "frequency": "Weekly, read in the Monday alignment",
+        "hint": "The official number comes from Easy. Until that integration exists, the CRM counts new pipeline deals."
+      },
+      "k3": {
+        "title": "Curve A coverage",
+        "target": "Target: 100% of Curve A touched every week",
+        "formula": "Curve A clients touched this week ÷ Curve A clients in the book.",
+        "frequency": "Weekly",
+        "hintEmpty": "Tag clients with “Curva A” in Contacts. Without that Chapter 16 classification, this KPI stays empty.",
+        "hintReady": "{contacted} of {total} Curve A clients were touched this week."
+      },
+      "k4": {
+        "title": "Follow-up cadence adherence",
+        "target": "Target: 90% or more",
+        "formula": "Open deals with a touch in the last 7 days ÷ open deals.",
+        "frequency": "Weekly",
+        "hint": "{onCadence} of {open} open deals had a touch inside the cadence (CRM message or deal update)."
+      },
+      "k5": {
+        "title": "Revenue vs target",
+        "target": "Portfolio target: {target} / month",
+        "formula": "Won deals this month ÷ monthly target, read against calendar pace.",
+        "frequency": "Daily on the board, weekly in the reading",
+        "hint": "This sums won pipeline deals. Invoiced revenue (R$400k per book / R$4M total) comes from Easy."
+      },
+      "k6": {
+        "title": "New and reactivated this month",
+        "target": "Target: 12–13 per consultant, 125 for the team",
+        "formula": "First win this month + clients with no win for 90 days who won again.",
+        "frequency": "Weekly",
+        "hint": "{novos} new and {reactivated} reactivated from won CRM deals. The official 90-day ruler is an Easy purchase."
+      },
+      "k7": {
+        "title": "Average discount given",
+        "target": "Target: below the consultant’s historical average (week 6)",
+        "formula": "Weighted average discount vs list price, per consultant, this month.",
+        "frequency": "Weekly",
+        "hint": "The CRM does not store discount or list price. This KPI only closes with Easy."
+      },
+      "k8": {
+        "title": "Base retraction",
+        "target": "No Curve A client in retraction without an action plan",
+        "formula": "Active clients who bought this month less than 70% of the prior 3-month average.",
+        "frequency": "Monthly, reviewed weekly by exception",
+        "hint": "Proxy from won CRM deals. There is no action-plan field yet — Easy remains the real purchase."
+      },
+      "loadError": "Could not load the indicators. Check that the local database is running."
+    },
+    "marketing": {
+      "bannerTitle": "Marketing — screens ready, data from BM",
+      "bannerBody": "This tab is the media board layout. Spend, leads, CPL and campaigns fill in when Meta Business Manager is connected. The CRM still owns the conversation and the deal after the lead.",
+      "spend": "Spend",
+      "leads": "Leads",
+      "cpl": "CPL",
+      "roas": "Return",
+      "awaitingBm": "Waiting on BM",
+      "funnelTitle": "Media → CRM funnel",
+      "funnelHint": "The first three steps come from BM. Conversations and deals already live in this CRM.",
+      "funnel": {
+        "impressions": "Impressions",
+        "clicks": "Clicks",
+        "leads": "Leads",
+        "conversations": "Conversations",
+        "deals": "Deals"
+      },
+      "campaignsTitle": "Campaigns",
+      "campaignsHint": "Active BM campaigns with spend and cost per lead.",
+      "colCampaign": "Campaign",
+      "colSpend": "Spend",
+      "colLeads": "Leads",
+      "colCpl": "CPL",
+      "colStatus": "Status",
+      "campaignsEmpty": "No campaigns loaded. Connect BM to fill this table."
     }
   },
   "Inbox": {
@@ -1369,13 +1507,11 @@
       "deleteLocallyAria": "로컬에서 템플릿 삭제",
       "deleteMetaLocallyTitle": "Meta와 로컬에서 삭제",
       "deleteLocallyTitle": "로컬에서 삭제",
-
       "dialogEditTitle": "메시지 템플릿 수정",
       "dialogNewTitle": "새 메시지 템플릿",
       "dialogEditDesc": "변경 사항을 저장해 Meta에 재제출하세요. 검토 중에는 상태가 다시 대기 중으로 바뀝니다.",
       "dialogNewDesc": "템플릿을 만들어 Meta 승인을 요청하세요. 승인되면 브로드캐스트와 인박스에서 사용할 수 있습니다.",
       "authWarning": "AUTHENTICATION 템플릿은 본문과 OTP 버튼 형식이 고정되어 있어 별도의 빌더가 필요합니다. 지금은 Meta WhatsApp 관리자에서 만든 뒤 <bold>Meta에서 동기화</bold>로 가져오세요.",
-
       "templateName": "템플릿 이름",
       "namePlaceholder": "예: order_confirmation",
       "nameFixed": "템플릿이 Meta에 존재하면 이름이 고정됩니다 — 변경하려면 새 템플릿을 만드세요.",
@@ -1384,7 +1520,6 @@
       "language": "언어",
       "langFixed": "템플릿이 Meta에 존재하면 언어가 고정됩니다.",
       "langHint": "Meta의 정확한 코드와 일치해야 합니다 — <code>en_US</code>와 <code>en</code>은 다른 코드입니다.",
-
       "header": "헤더",
       "headerNone": "없음",
       "headerText": "텍스트",
@@ -1394,7 +1529,6 @@
       "headerTextPlaceholder": "헤더 텍스트 (최대 60자, {{1}} 선택 가능)",
       "headerSampleAria": "헤더 변수 샘플 값",
       "headerSamplePlaceholder": "{{1}}의 샘플 값 (Meta 검토에 필요)",
-
       "uploadImage": "이미지 업로드",
       "uploadHint": "JPEG 또는 PNG, 5MB 이하",
       "mediaUrlPlaceholder": "https://… (또는 공개 {format} 링크 붙여넣기)",
@@ -1402,17 +1536,14 @@
       "mediaHint": "공개적으로 접근 가능한 HTTPS 링크여야 합니다. Meta가 검토 중 한 번 가져오므로 약 24시간 동안 살아있어야 합니다.",
       "videoHint": " 권장: MP4 / 3GPP, 16MB 이하, 60초 이하.",
       "documentHint": " 권장: PDF, 100MB 이하.",
-
       "bodyText": "본문 텍스트",
       "bodyPlaceholder": "안녕하세요 {{1}}님, 주문 {{2}}이(가) 확정되었습니다.",
       "sampleValues": "샘플 값 (Meta가 템플릿 검토에 사용합니다)",
       "bodyHint": "변수에는 {{1}}, {{2}}를 사용하세요 ({{1}}부터 연속되어야 합니다).",
       "sampleAria": "본문 변수 {var}의 샘플 값",
       "samplePlaceholder": "{var}의 샘플",
-
       "footer": "푸터 (선택)",
       "footerPlaceholder": "선택적 푸터 텍스트 (최대 60자)",
-
       "buttons": "버튼 (선택)",
       "addButton": "버튼 추가",
       "buttonsLimit": "최대 {max}개 버튼. QUICK_REPLY 버튼은 URL / 전화 / 코드 복사 버튼보다 앞에 와야 합니다.",
@@ -1425,19 +1556,16 @@
       "urlSamplePlaceholder": "{{1}}의 예시 값 (URL에 변수가 있을 때 필요)",
       "phonePlaceholder": "+15551234567",
       "codePlaceholder": "예시 코드 (예: SUMMER20)",
-
       "cancel": "취소",
       "saving": "저장 중…",
       "submitting": "제출 중…",
       "saveResubmit": "저장 & 재제출",
       "submitApproval": "승인 요청",
-
       "deleteDialogTitle": "템플릿을 삭제하시겠습니까?",
       "deleteMetaDesc": "\"{name}\"이(가) Meta와 wacrm에서 삭제됩니다. 이 템플릿을 사용하는 활성 브로드캐스트는 다음 전송부터 실패하기 시작합니다. 되돌릴 수 없습니다.",
       "deleteLocalDesc": "\"{name}\"이(가) wacrm에서 삭제됩니다. Meta에 제출된 적이 없으므로 별도의 원격 정리가 필요하지 않습니다.",
       "deleting": "삭제 중…",
       "delete": "삭제",
-
       "toastLoadFailed": "템플릿을 불러오지 못했습니다",
       "toastSubmitFailed": "제출하지 못했습니다",
       "toastSubmitEditSuccess": "수정 사항이 제출되었습니다 — Meta는 보통 24시간 이내에 검토합니다.",
@@ -1583,7 +1711,6 @@
       "profileSaved": "프로필이 저장되었습니다",
       "emailChangeFailed": "이메일 변경 실패: {message}",
       "profileSavedEmailCheck": "프로필이 저장되었습니다 — 이메일 주소 변경을 확인하려면 이메일을 확인하세요",
-
       "passwordTitle": "비밀번호",
       "passwordDesc": "최소 {min}자 이상 사용하세요. 변경 후에도 이 기기에서는 로그인이 유지됩니다.",
       "currentPassword": "현재 비밀번호",
@@ -1597,7 +1724,6 @@
       "currentPasswordIncorrect": "현재 비밀번호가 올바르지 않습니다",
       "passwordUpdateFailed": "비밀번호 업데이트 실패: {message}",
       "passwordUpdated": "비밀번호가 업데이트되었습니다",
-
       "sessionsTitle": "활성 세션",
       "sessionsDesc": "이 기기를 포함해 로그인되어 있는 모든 기기에서 로그아웃합니다. 노트북을 분실했거나 비밀번호를 공유한 경우 유용합니다.",
       "signOutAll": "모든 기기에서 로그아웃",

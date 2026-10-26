@@ -9,10 +9,66 @@ export function startOfLocalDay(d: Date = new Date()): Date {
   return out
 }
 
-export function daysAgoStart(days: number): Date {
-  const out = startOfLocalDay()
+export function daysAgoStart(days: number, from: Date = new Date()): Date {
+  const out = startOfLocalDay(from)
   out.setDate(out.getDate() - days)
   return out
+}
+
+export function addLocalDays(d: Date, days: number): Date {
+  const out = startOfLocalDay(d)
+  out.setDate(out.getDate() + days)
+  return out
+}
+
+/** Exclusive end of a local calendar day (next midnight). */
+export function startOfNextLocalDay(d: Date): Date {
+  return addLocalDays(d, 1)
+}
+
+export function toDateInputValue(d: Date): string {
+  return localDayKey(d)
+}
+
+export function fromDateInputValue(value: string): Date {
+  const [y, m, day] = value.split('-').map(Number)
+  const out = new Date()
+  out.setFullYear(y, (m ?? 1) - 1, day ?? 1)
+  out.setHours(0, 0, 0, 0)
+  return out
+}
+
+/** Inclusive start, exclusive end. */
+export function eachLocalDay(start: Date, endExclusive: Date): string[] {
+  const keys: string[] = []
+  const cur = startOfLocalDay(start)
+  const end = startOfLocalDay(endExclusive)
+  while (cur < end) {
+    keys.push(localDayKey(cur))
+    cur.setDate(cur.getDate() + 1)
+  }
+  return keys
+}
+
+export function countLocalDays(start: Date, endExclusive: Date): number {
+  return eachLocalDay(start, endExclusive).length
+}
+
+/** Monday 00:00 local — Aluinter reads weekly KPIs on the Monday alignment. */
+export function startOfLocalWeek(d: Date = new Date()): Date {
+  const out = startOfLocalDay(d)
+  out.setDate(out.getDate() - mondayIndex(out))
+  return out
+}
+
+export function startOfLocalMonth(d: Date = new Date()): Date {
+  const out = startOfLocalDay(d)
+  out.setDate(1)
+  return out
+}
+
+export function daysInLocalMonth(d: Date = new Date()): number {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
 }
 
 /** Date-only key (YYYY-MM-DD) for bucketing rows by local calendar day. */

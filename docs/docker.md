@@ -53,6 +53,46 @@ docker build \
 docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
 ```
 
+## Local Supabase (`supabase start`) + app in Docker
+
+The Compose file runs **only the Next.js app**. Postgres/Auth/API still
+come from Supabase — usually the stack the CLI starts in Docker on your
+machine (`npx supabase start` in this repo).
+
+Inside the `app` container, `http://127.0.0.1:54321` points at the
+container itself, not Supabase on the host. That shows up as
+`AuthRetryableFetchError: fetch failed` in the logs.
+
+1. Start Supabase on the host (requires Docker):
+
+   ```bash
+   npx supabase start
+   ```
+
+2. Point the app at the host from Compose. In `.env.local` (used for
+   `--env-file` **and** build args), set:
+
+   ```bash
+   NEXT_PUBLIC_SUPABASE_URL=http://host.docker.internal:54321
+   NEXT_PUBLIC_SITE_URL=http://localhost:3000
+   ```
+
+   Keys can stay the default local demo values from `supabase status`.
+
+3. Rebuild and run (required whenever `NEXT_PUBLIC_*` changes):
+
+   ```bash
+   docker compose --env-file .env.local up --build -d
+   ```
+
+If you sometimes run `npm run dev` on the host and sometimes Docker, keep
+two files — e.g. `.env.local` with `127.0.0.1:54321` for dev and
+`.env.docker.local` with `host.docker.internal:54321` for Compose:
+
+```bash
+docker compose --env-file .env.docker.local up --build -d
+```
+
 ## Notes
 
 - Database migrations under `supabase/` are **not** run by the
