@@ -132,25 +132,45 @@ BEGIN
     RETURNING id INTO v_pipeline_id;
 
     INSERT INTO pipeline_stages (pipeline_id, name, position, color) VALUES
-      (v_pipeline_id, 'Novo lead', 0, '#3b82f6'),
-      (v_pipeline_id, 'Qualificado', 1, '#eab308'),
-      (v_pipeline_id, 'Orçamento', 2, '#f97316'),
-      (v_pipeline_id, 'Negociação', 3, '#8b5cf6'),
-      (v_pipeline_id, 'Ganho', 4, '#22c55e');
+      (v_pipeline_id, 'Prospecção', 0, '#64748b'),
+      (v_pipeline_id, 'Qualificação', 1, '#0ea5e9'),
+      (v_pipeline_id, 'Levantamento de oportunidades', 2, '#8b5cf6'),
+      (v_pipeline_id, 'Envio do orçamento', 3, '#f97316'),
+      (v_pipeline_id, 'Negociação', 4, '#eab308'),
+      (v_pipeline_id, 'Fechamento', 5, '#22c55e');
   ELSE
     UPDATE pipelines SET name = 'Vendas Aluinter' WHERE id = v_pipeline_id;
-    UPDATE pipeline_stages SET name = 'Novo lead',   color = '#3b82f6' WHERE pipeline_id = v_pipeline_id AND position = 0;
-    UPDATE pipeline_stages SET name = 'Qualificado', color = '#eab308' WHERE pipeline_id = v_pipeline_id AND position = 1;
-    UPDATE pipeline_stages SET name = 'Orçamento',   color = '#f97316' WHERE pipeline_id = v_pipeline_id AND position = 2;
-    UPDATE pipeline_stages SET name = 'Negociação',  color = '#8b5cf6' WHERE pipeline_id = v_pipeline_id AND position = 3;
-    UPDATE pipeline_stages SET name = 'Ganho',       color = '#22c55e' WHERE pipeline_id = v_pipeline_id AND position = 4;
+    UPDATE pipeline_stages SET name = 'Prospecção', color = '#64748b'
+      WHERE pipeline_id = v_pipeline_id AND position = 0;
+    UPDATE pipeline_stages SET name = 'Qualificação', color = '#0ea5e9'
+      WHERE pipeline_id = v_pipeline_id AND position = 1;
+    UPDATE pipeline_stages SET name = 'Levantamento de oportunidades', color = '#8b5cf6'
+      WHERE pipeline_id = v_pipeline_id AND position = 2;
+    UPDATE pipeline_stages SET name = 'Envio do orçamento', color = '#f97316'
+      WHERE pipeline_id = v_pipeline_id AND position = 3;
+    UPDATE pipeline_stages SET name = 'Negociação', color = '#eab308'
+      WHERE pipeline_id = v_pipeline_id AND position = 4;
+    UPDATE pipeline_stages SET name = 'Fechamento', color = '#22c55e'
+      WHERE pipeline_id = v_pipeline_id AND position = 5;
+    INSERT INTO pipeline_stages (pipeline_id, name, position, color)
+    SELECT v_pipeline_id, 'Levantamento de oportunidades', 2, '#8b5cf6'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM pipeline_stages
+      WHERE pipeline_id = v_pipeline_id AND position = 2
+    );
+    INSERT INTO pipeline_stages (pipeline_id, name, position, color)
+    SELECT v_pipeline_id, 'Fechamento', 5, '#22c55e'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM pipeline_stages
+      WHERE pipeline_id = v_pipeline_id AND position = 5
+    );
   END IF;
 
   SELECT id INTO v_stage_lead  FROM pipeline_stages WHERE pipeline_id = v_pipeline_id AND position = 0;
   SELECT id INTO v_stage_qual  FROM pipeline_stages WHERE pipeline_id = v_pipeline_id AND position = 1;
-  SELECT id INTO v_stage_quote FROM pipeline_stages WHERE pipeline_id = v_pipeline_id AND position = 2;
-  SELECT id INTO v_stage_nego  FROM pipeline_stages WHERE pipeline_id = v_pipeline_id AND position = 3;
-  SELECT id INTO v_stage_won   FROM pipeline_stages WHERE pipeline_id = v_pipeline_id AND position = 4;
+  SELECT id INTO v_stage_quote FROM pipeline_stages WHERE pipeline_id = v_pipeline_id AND position = 3;
+  SELECT id INTO v_stage_nego  FROM pipeline_stages WHERE pipeline_id = v_pipeline_id AND position = 4;
+  SELECT id INTO v_stage_won   FROM pipeline_stages WHERE pipeline_id = v_pipeline_id AND position = 5;
 
   DROP TABLE IF EXISTS seed_people;
   CREATE TEMP TABLE seed_people (

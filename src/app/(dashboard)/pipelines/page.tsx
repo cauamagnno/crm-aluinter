@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Pipeline, PipelineStage, Deal } from "@/types";
+import type { Pipeline, PipelineStage, Deal, DealTask, Profile } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
+import { DealDetailDialog } from "@/components/pipelines/deal-detail-dialog";
+import { DealTaskForm } from "@/components/pipelines/deal-task-form";
+import { DealFiltersSheet } from "@/components/pipelines/deal-filters-sheet";
+import {
+  countActiveFilters,
+  EMPTY_DEAL_FILTERS,
+  type DealFilterState,
+} from "@/components/pipelines/deal-filters";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,29 +32,51 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GitBranch, Plus, ChevronDown, Settings } from "lucide-react";
+import {
+  ChevronDown,
+  Clock,
+  Filter,
+  Handshake,
+  Pause,
+  Plus,
+  Settings,
+  ThumbsDown,
+  ThumbsUp,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
 import { GatedButton } from "@/components/ui/gated-button";
 import { useTranslations } from "next-intl";
+import {
+  DEFAULT_PIPELINE_NAME,
+  SPEC_DEFAULT_STAGES,
+} from "@/lib/pipelines/default-stages";
+import { dealMatchesStatusFilter } from "@/lib/pipelines/status";
 
-// Pipeline creation is admin-class (settings-tier write under
-// the new RLS); deal creation is operational and only requires
-// agent+. The two CTAs gate on different `useCan` capabilities,
-// not on different copy.
+type StatusFilter = "all" | "open" | "won" | "lost" | "paused" | "not_paused";
+type SortFilter = "created_desc" | "created_asc" | "value_desc";
 
-// Spec-defined seed — name and color per the product spec.
-const SPEC_DEFAULT_STAGES = [
-  { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1 }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4 }, // green
-];
+function attachNextTasks(deals: Deal[], tasks: DealTask[]): Deal[] {
+  const openByDeal = new Map<string, DealTask[]>();
+  for (const task of tasks) {
+    if (task.done_at) continue;
+    const list = openByDeal.get(task.deal_id) ?? [];
+    list.push(task);
+    openByDeal.set(task.deal_id, list);
+  }
+  return deals.map((deal) => {
+    const list = (openByDeal.get(deal.id) ?? []).sort(
+      (a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime(),
+    );
+    return { ...deal, next_task: list[0] ?? null };
+  });
+}
 
 export default function PipelinesPage() {
   const t = useTranslations("Pipelines.page");
+  const tStatus = useTranslations("Pipelines.status");
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
@@ -56,21 +86,27 @@ export default function PipelinesPage() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
   const [newPipelineName, setNewPipelineName] = useState("");
   const [creating, setCreating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Deal form state is lifted here so both the top-bar "Add Deal" and
-  // the per-column "+" trigger the same Sheet.
   const [dealFormOpen, setDealFormOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [taskDeal, setTaskDeal] = useState<Deal | null>(null);
   const [defaultStageId, setDefaultStageId] = useState<string>("");
 
-  // Guard against double-seeding (React StrictMode double-effect in dev).
+  const [ownerFilter, setOwnerFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortFilter, setSortFilter] = useState<SortFilter>("created_desc");
+  const [filters, setFilters] = useState<DealFilterState>(EMPTY_DEAL_FILTERS);
+
   const seedAttempted = useRef(false);
 
   const loadPipelines = useCallback(async () => {
@@ -104,7 +140,16 @@ export default function PipelinesPage() {
         .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
         .eq("pipeline_id", pipelineId)
         .order("created_at", { ascending: false });
-      return (data ?? []) as Deal[];
+      const rows = (data ?? []) as Deal[];
+      if (rows.length === 0) return rows;
+      const { data: tasks } = await supabase
+        .from("deal_tasks")
+        .select("*")
+        .in(
+          "deal_id",
+          rows.map((d) => d.id),
+        );
+      return attachNextTasks(rows, (tasks as DealTask[]) ?? []);
     },
     [supabase],
   );
@@ -114,13 +159,15 @@ export default function PipelinesPage() {
       data: { session },
     } = await supabase.auth.getSession();
     const user = session?.user;
-    if (!user) return null;
-    // pipelines.account_id is NOT NULL post-017 with no DB default.
-    if (!accountId) return null;
+    if (!user || !accountId) return null;
 
     const { data: pipeline, error } = await supabase
       .from("pipelines")
-      .insert({ user_id: user.id, account_id: accountId, name: "Sales Pipeline" })
+      .insert({
+        user_id: user.id,
+        account_id: accountId,
+        name: DEFAULT_PIPELINE_NAME,
+      })
       .select()
       .single();
 
@@ -129,18 +176,18 @@ export default function PipelinesPage() {
       return null;
     }
 
-    const stagesPayload = SPEC_DEFAULT_STAGES.map((s) => ({
-      pipeline_id: pipeline.id,
-      name: s.name,
-      color: s.color,
-      position: s.position,
-    }));
-    await supabase.from("pipeline_stages").insert(stagesPayload);
+    await supabase.from("pipeline_stages").insert(
+      SPEC_DEFAULT_STAGES.map((s) => ({
+        pipeline_id: pipeline.id,
+        name: s.name,
+        color: s.color,
+        position: s.position,
+      })),
+    );
 
     return pipeline as Pipeline;
   }, [supabase, accountId]);
 
-  // Initial load + seed-if-empty
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -153,7 +200,13 @@ export default function PipelinesPage() {
         if (seeded) list = await loadPipelines();
       }
 
+      const { data: profileRows } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("full_name");
+
       if (cancelled) return;
+      setProfiles((profileRows as Profile[]) ?? []);
       setPipelines(list);
       if (list.length > 0) {
         setSelectedPipelineId((prev) =>
@@ -167,12 +220,8 @@ export default function PipelinesPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadPipelines, seedDefaultPipeline]);
+  }, [loadPipelines, seedDefaultPipeline, supabase]);
 
-  // Load stages + deals whenever selected pipeline changes.
-  // Clearing on no-selection is a legitimate sync with URL/prop
-  // state; the load completion uses async setters inside promise
-  // callbacks (not synchronous in the effect body).
   useEffect(() => {
     if (!selectedPipelineId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -216,7 +265,6 @@ export default function PipelinesPage() {
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
-      // Optimistic update — board already animated; just persist.
       setDeals((prev) =>
         prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
       );
@@ -241,10 +289,14 @@ export default function PipelinesPage() {
     [stages],
   );
 
-  const handleEditDeal = useCallback((deal: Deal) => {
+  const handleOpenDeal = useCallback((deal: Deal) => {
     setEditingDeal(deal);
-    setDefaultStageId(deal.stage_id);
-    setDealFormOpen(true);
+    setDetailOpen(true);
+  }, []);
+
+  const handleCreateTask = useCallback((deal: Deal) => {
+    setTaskDeal(deal);
+    setTaskFormOpen(true);
   }, []);
 
   async function handleCreatePipeline() {
@@ -260,7 +312,6 @@ export default function PipelinesPage() {
       setCreating(false);
       return;
     }
-    // pipelines.account_id is NOT NULL post-017 with no DB default.
     if (!accountId) {
       toast.error(t("toastNotLinkedToAccount"));
       setCreating(false);
@@ -279,13 +330,14 @@ export default function PipelinesPage() {
       return;
     }
 
-    const stagesPayload = SPEC_DEFAULT_STAGES.map((s) => ({
-      pipeline_id: pipeline.id,
-      name: s.name,
-      color: s.color,
-      position: s.position,
-    }));
-    await supabase.from("pipeline_stages").insert(stagesPayload);
+    await supabase.from("pipeline_stages").insert(
+      SPEC_DEFAULT_STAGES.map((s) => ({
+        pipeline_id: pipeline.id,
+        name: s.name,
+        color: s.color,
+        position: s.position,
+      })),
+    );
 
     setNewPipelineName("");
     setNewPipelineOpen(false);
@@ -296,6 +348,56 @@ export default function PipelinesPage() {
   }
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
+  const activeFilterCount = countActiveFilters(filters);
+
+  const visibleDeals = useMemo(() => {
+    let rows = [...deals];
+    if (ownerFilter !== "all") {
+      rows = rows.filter((d) => d.assigned_to === ownerFilter);
+    }
+    rows = rows.filter((d) => dealMatchesStatusFilter(d, statusFilter));
+    if (filters.withoutTask) rows = rows.filter((d) => !d.next_task);
+    if (filters.name.trim()) {
+      const q = filters.name.trim().toLowerCase();
+      rows = rows.filter(
+        (d) =>
+          d.title.toLowerCase().includes(q) ||
+          (d.contact?.name ?? "").toLowerCase().includes(q),
+      );
+    }
+    const min = filters.valueMin ? Number(filters.valueMin) : null;
+    const max = filters.valueMax ? Number(filters.valueMax) : null;
+    if (min != null && !Number.isNaN(min)) {
+      rows = rows.filter((d) => Number(d.value || 0) >= min);
+    }
+    if (max != null && !Number.isNaN(max)) {
+      rows = rows.filter((d) => Number(d.value || 0) <= max);
+    }
+    if (filters.createdFrom) {
+      rows = rows.filter((d) => d.created_at.slice(0, 10) >= filters.createdFrom);
+    }
+    if (filters.closeFrom) {
+      rows = rows.filter(
+        (d) => (d.expected_close_date ?? "") >= filters.closeFrom,
+      );
+    }
+    if (filters.nextTaskFrom) {
+      rows = rows.filter(
+        (d) => (d.next_task?.due_at ?? "").slice(0, 10) >= filters.nextTaskFrom,
+      );
+    }
+    rows.sort((a, b) => {
+      if (sortFilter === "value_desc") return Number(b.value || 0) - Number(a.value || 0);
+      if (sortFilter === "created_asc") {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    return rows;
+  }, [deals, ownerFilter, statusFilter, sortFilter, filters]);
+
+  const liveEditingDeal =
+    deals.find((d) => d.id === editingDeal?.id) ?? editingDeal;
 
   if (loading) {
     return (
@@ -305,7 +407,7 @@ export default function PipelinesPage() {
           <div className="h-9 w-28 animate-pulse rounded-lg bg-muted" />
         </div>
         <div className="flex gap-3">
-          {[1, 2, 3, 4, 5].map((i) => (
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="h-96 w-72 animate-pulse rounded-xl bg-muted/50" />
           ))}
         </div>
@@ -313,17 +415,23 @@ export default function PipelinesPage() {
     );
   }
 
+  const statusOptions: { id: StatusFilter; label: string; icon: typeof UserRound }[] = [
+    { id: "all", label: tStatus("all"), icon: Handshake },
+    { id: "open", label: tStatus("open"), icon: UserRound },
+    { id: "won", label: tStatus("won"), icon: ThumbsUp },
+    { id: "lost", label: tStatus("lost"), icon: ThumbsDown },
+    { id: "paused", label: tStatus("paused"), icon: Pause },
+    { id: "not_paused", label: tStatus("not_paused"), icon: Clock },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          {/* Pipeline selector dropdown */}
+          <h1 className="text-xl font-semibold">{t("title")}</h1>
           <DropdownMenu>
-            <DropdownMenuTrigger
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors data-[popup-open]:bg-muted"
-            >
-              <GitBranch className="h-4 w-4 text-primary" />
+            <DropdownMenuTrigger className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground hover:bg-muted">
+              <Handshake className="h-4 w-4 text-primary" />
               <span className="font-semibold">
                 {selectedPipeline?.name ?? t("selectPipeline")}
               </span>
@@ -348,7 +456,7 @@ export default function PipelinesPage() {
                       : "text-popover-foreground"
                   }
                 >
-                  <GitBranch className="mr-2 h-3.5 w-3.5" />
+                  <Handshake className="mr-2 h-3.5 w-3.5" />
                   {p.name}
                 </DropdownMenuItem>
               ))}
@@ -362,38 +470,99 @@ export default function PipelinesPage() {
                   {t("managePipelines")}
                 </DropdownMenuItem>
               )}
+              {canEditSettings && (
+                <DropdownMenuItem onClick={() => setNewPipelineOpen(true)}>
+                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  {t("addPipeline")}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        <div className="flex items-center gap-2">
-          <GatedButton
-            variant="outline"
-            canAct={canEditSettings}
-            gateReason="create pipelines"
-            onClick={() => setNewPipelineOpen(true)}
-            className="border-border bg-card text-foreground hover:bg-muted"
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            {t("addPipeline")}
-          </GatedButton>
-          <GatedButton
-            canAct={canCreateDeals}
-            gateReason="create deals"
-            disabled={!selectedPipelineId || stages.length === 0}
-            onClick={() => handleAddDeal()}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            {t("addDeal")}
-          </GatedButton>
-        </div>
+        <GatedButton
+          canAct={canCreateDeals}
+          gateReason="create deals"
+          disabled={!selectedPipelineId || stages.length === 0}
+          onClick={() => handleAddDeal()}
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          <Plus className="mr-1 h-4 w-4" />
+          {t("addDeal")}
+        </GatedButton>
       </div>
 
-      {/* Board */}
+      {pipelines.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <ToolbarSelect
+            label={
+              ownerFilter === "all"
+                ? t("allDeals")
+                : profiles.find((p) => p.id === ownerFilter)?.full_name || t("allDeals")
+            }
+            icon={<UserRound className="h-3.5 w-3.5" />}
+          >
+            <DropdownMenuItem onClick={() => setOwnerFilter("all")}>
+              {t("allDeals")}
+            </DropdownMenuItem>
+            {profiles.map((p) => (
+              <DropdownMenuItem key={p.id} onClick={() => setOwnerFilter(p.id)}>
+                {p.full_name || p.email}
+              </DropdownMenuItem>
+            ))}
+          </ToolbarSelect>
+
+          <ToolbarSelect
+            label={tStatus(statusFilter === "all" ? "all" : statusFilter)}
+            icon={<Handshake className="h-3.5 w-3.5" />}
+          >
+            {statusOptions.map((opt) => (
+              <DropdownMenuItem
+                key={opt.id}
+                onClick={() => setStatusFilter(opt.id)}
+              >
+                <opt.icon className="mr-2 h-3.5 w-3.5" />
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
+          </ToolbarSelect>
+
+          <ToolbarSelect
+            label={
+              sortFilter === "created_asc"
+                ? t("sortCreatedAsc")
+                : sortFilter === "value_desc"
+                  ? t("sortValueDesc")
+                  : t("sortCreatedDesc")
+            }
+          >
+            <DropdownMenuItem onClick={() => setSortFilter("created_desc")}>
+              {t("sortCreatedDesc")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortFilter("created_asc")}>
+              {t("sortCreatedAsc")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortFilter("value_desc")}>
+              {t("sortValueDesc")}
+            </DropdownMenuItem>
+          </ToolbarSelect>
+
+          <Button variant="outline" size="sm" onClick={() => setFiltersOpen(true)}>
+            <Filter className="h-3.5 w-3.5" />
+            {t("filtersCount", { count: activeFilterCount })}
+          </Button>
+        </div>
+      )}
+
+      {pipelines.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {t("countLabel", { count: visibleDeals.length })}
+        </p>
+      )}
+
       {pipelines.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20">
-          <GitBranch className="h-12 w-12 text-muted-foreground" />
+          <Handshake className="h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
             {t("noPipelinesYet")}
           </h3>
@@ -412,18 +581,18 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineAnalytics stages={stages} deals={deals} />
+          <PipelineAnalytics stages={stages} deals={visibleDeals} />
           <PipelineBoard
             stages={stages}
-            deals={deals}
+            deals={visibleDeals}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
-            onEditDeal={handleEditDeal}
+            onEditDeal={handleOpenDeal}
+            onCreateTask={handleCreateTask}
           />
         </>
       )}
 
-      {/* New Pipeline Dialog */}
       <Dialog open={newPipelineOpen} onOpenChange={setNewPipelineOpen}>
         <DialogContent className="sm:max-w-sm bg-popover border-border">
           <DialogHeader>
@@ -463,7 +632,6 @@ export default function PipelinesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Pipeline Settings */}
       {selectedPipeline && (
         <PipelineSettings
           open={settingsOpen}
@@ -479,16 +647,71 @@ export default function PipelinesPage() {
         />
       )}
 
-      {/* Deal Form (Sheet) */}
       <DealForm
         open={dealFormOpen}
         onOpenChange={setDealFormOpen}
-        deal={editingDeal}
+        deal={null}
         pipelineId={selectedPipelineId}
         stages={stages}
         defaultStageId={defaultStageId}
         onSaved={refreshDeals}
       />
+
+      <DealDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        deal={liveEditingDeal}
+        stages={stages}
+        profiles={profiles}
+        onSaved={refreshDeals}
+        onCreateTask={(deal) => {
+          setDetailOpen(false);
+          handleCreateTask(deal);
+        }}
+      />
+
+      <DealTaskForm
+        open={taskFormOpen}
+        onOpenChange={setTaskFormOpen}
+        deal={taskDeal}
+        deals={deals}
+        profiles={profiles}
+        onSaved={refreshDeals}
+      />
+
+      <DealFiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        filters={filters}
+        onChange={setFilters}
+        onClear={() => setFilters(EMPTY_DEAL_FILTERS)}
+      />
     </div>
+  );
+}
+
+function ToolbarSelect({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon?: ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground hover:bg-muted">
+        {icon}
+        <span>{label}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="border-border bg-popover text-popover-foreground"
+      >
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

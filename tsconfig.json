@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@supabase/supabase-js": ["./src/lib/db/supabase-compat.ts"]
     }
   },
   "include": [

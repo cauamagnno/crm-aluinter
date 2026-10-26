@@ -41,6 +41,9 @@ yarn-error.log*
 supabase/.branches/
 supabase/.temp/
 
+# local postgres media + env
+/data/
+
 # vercel
 .vercel
 

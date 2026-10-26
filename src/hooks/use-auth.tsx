@@ -435,7 +435,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         refreshProfile,
         account,
-        defaultCurrency: account?.default_currency ?? DEFAULT_CURRENCY,
+        defaultCurrency: DEFAULT_CURRENCY,
         accountStatus,
         accountStatusDetail: statusDetail,
         ...derived,

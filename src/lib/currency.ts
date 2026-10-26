@@ -11,45 +11,47 @@
  */
 
 /** App-wide fallback when no account/deal currency is available. */
-export const DEFAULT_CURRENCY = "USD";
+export const DEFAULT_CURRENCY = "BRL";
+
+/** Locale used to format every money value in the product. */
+export const CURRENCY_LOCALE = "pt-BR";
 
 export interface CurrencyOption {
-  /** ISO-4217 code, e.g. "USD". Stored verbatim in the DB. */
+  /** ISO-4217 code, e.g. "BRL". Stored verbatim in the DB. */
   code: string;
-  /** Human label for the dropdown, e.g. "US Dollar". */
+  /** Human label for display, e.g. "Real". */
   label: string;
-  /** Symbol for compact display, e.g. "$". */
+  /** Symbol for compact display, e.g. "R$". */
   symbol: string;
 }
 
 /**
- * The currencies offered in pickers. Codes must be valid ISO-4217 so
- * `Intl.NumberFormat` renders the right symbol/grouping. Extend this
- * list to offer more — nothing else needs to change.
+ * Known currencies for formatting existing deal rows. The product
+ * currency is always BRL — there is no picker.
  */
 export const CURRENCIES: CurrencyOption[] = [
-  { code: "USD", label: "US Dollar", symbol: "$" },
+  { code: "BRL", label: "Real", symbol: "R$" },
+  { code: "USD", label: "Dólar americano", symbol: "$" },
   { code: "EUR", label: "Euro", symbol: "€" },
-  { code: "GBP", label: "British Pound", symbol: "£" },
-  { code: "INR", label: "Indian Rupee", symbol: "₹" },
-  { code: "AUD", label: "Australian Dollar", symbol: "A$" },
-  { code: "CAD", label: "Canadian Dollar", symbol: "C$" },
-  { code: "BRL", label: "Brazilian Real", symbol: "R$" },
-  { code: "JPY", label: "Japanese Yen", symbol: "¥" },
-  { code: "CNY", label: "Chinese Yuan", symbol: "¥" },
-  { code: "AED", label: "UAE Dirham", symbol: "د.إ" },
-  { code: "ZAR", label: "South African Rand", symbol: "R" },
-  { code: "NGN", label: "Nigerian Naira", symbol: "₦" },
-  { code: "SGD", label: "Singapore Dollar", symbol: "S$" },
-  { code: "MXN", label: "Mexican Peso", symbol: "$" },
-  { code: "COP", label: "Colombian Peso", symbol: "$" },
+  { code: "GBP", label: "Libra esterlina", symbol: "£" },
+  { code: "INR", label: "Rupia indiana", symbol: "₹" },
+  { code: "AUD", label: "Dólar australiano", symbol: "A$" },
+  { code: "CAD", label: "Dólar canadense", symbol: "C$" },
+  { code: "JPY", label: "Iene japonês", symbol: "¥" },
+  { code: "CNY", label: "Yuan chinês", symbol: "¥" },
+  { code: "AED", label: "Dirham dos EAU", symbol: "د.إ" },
+  { code: "ZAR", label: "Rand sul-africano", symbol: "R" },
+  { code: "NGN", label: "Naira nigeriana", symbol: "₦" },
+  { code: "SGD", label: "Dólar de Singapura", symbol: "S$" },
+  { code: "MXN", label: "Peso mexicano", symbol: "$" },
+  { code: "COP", label: "Peso colombiano", symbol: "$" },
 ];
 
 /**
  * Format a deal value as a currency string. Whole-number output
- * (no minor units) — deal values are tracked to the dollar across
- * the app. `currency` defaults to USD so callers with nothing better
- * stay safe, but pass the account/deal currency wherever known.
+ * (no minor units) — deal values are tracked as whole currency units
+ * across the app. `currency` defaults to BRL so callers with nothing
+ * better stay safe, but pass the account/deal currency wherever known.
  *
  * Total by design: `Intl.NumberFormat` throws a RangeError on a
  * structurally invalid currency code, and `deals.currency` carries
@@ -65,7 +67,7 @@ export function formatCurrency(
   const code = (currency || DEFAULT_CURRENCY).trim();
   const amount = Number(value) || 0;
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(CURRENCY_LOCALE, {
       style: "currency",
       currency: code,
       minimumFractionDigits: 0,
@@ -74,7 +76,7 @@ export function formatCurrency(
   } catch {
     // Invalid ISO code — show the raw code + grouped number so the
     // value is still legible instead of throwing.
-    return `${code} ${new Intl.NumberFormat(undefined, {
+    return `${code} ${new Intl.NumberFormat(CURRENCY_LOCALE, {
       maximumFractionDigits: 0,
     }).format(amount)}`;
   }

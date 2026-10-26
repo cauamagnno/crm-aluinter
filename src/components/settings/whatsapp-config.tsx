@@ -180,7 +180,7 @@ export function WhatsAppConfig() {
       }
     } catch (err) {
       console.error('fetchConfig error:', err);
-      toast.error('Failed to load WhatsApp configuration');
+      toast.error('Falha ao carregar a configuração do WhatsApp');
     } finally {
       setLoading(false);
     }
@@ -260,7 +260,7 @@ export function WhatsAppConfig() {
         // server. But our POST handler requires an access_token to verify
         // with Meta. If the user didn't change the token, we need to signal
         // that. Simplest: require token re-entry if they're updating.
-        toast.error('Please re-enter the Access Token to save changes');
+        toast.error('Informe de novo o token de acesso para salvar as alterações');
         setSaving(false);
         return;
       }
@@ -274,7 +274,7 @@ export function WhatsAppConfig() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || 'Failed to save configuration');
+        toast.error(data.error || 'Falha ao salvar a configuração');
         setSaving(false);
         return;
       }
@@ -296,7 +296,7 @@ export function WhatsAppConfig() {
         // Don't claim the number is "Live" — point at the
         // Registration status banner instead.
         toast.success(
-          'Credentials saved and verified. Inbound registration was skipped (no PIN) — see Registration status below.',
+          'Credenciais salvas e verificadas. O registro de entrada foi pulado (sem PIN) — veja o status de registro abaixo.',
           { duration: 10000 },
         );
         setPin('');
@@ -315,7 +315,7 @@ export function WhatsAppConfig() {
       if (accountId) await fetchConfig(accountId);
     } catch (err) {
       console.error('Save error:', err);
-      toast.error('Failed to save configuration');
+      toast.error('Falha ao salvar a configuração');
     } finally {
       setSaving(false);
     }
@@ -345,7 +345,7 @@ export function WhatsAppConfig() {
     } catch (err) {
       console.error('Test connection error:', err);
       setConnectionStatus('disconnected');
-      toast.error('Connection test failed. Check network and try again.');
+      toast.error('O teste de conexão falhou. Verifique a rede e tente de novo.');
     } finally {
       setTesting(false);
     }
@@ -361,24 +361,24 @@ export function WhatsAppConfig() {
       const data = (await res.json()) as RegistrationProbe;
       setRegistrationProbe(data);
       if (data.live) {
-        toast.success('Number is fully wired — Meta is delivering events.');
+        toast.success('Número totalmente ligado — a Meta está entregando eventos.');
       } else {
         toast.error(
-          'Number is not fully registered. See the checks below for which step failed.',
+          'O número não está totalmente registrado. Veja as verificações abaixo para saber qual etapa falhou.',
           { duration: 8000 },
         );
       }
       if (accountId) await fetchConfig(accountId);
     } catch (err) {
       console.error('verify-registration failed:', err);
-      toast.error('Could not reach the verification endpoint.');
+      toast.error('Não foi possível alcançar o endpoint de verificação.');
     } finally {
       setVerifyingRegistration(false);
     }
   }
 
   async function handleReset() {
-    if (!confirm('This will delete the current WhatsApp config so you can re-enter it. Continue?')) {
+    if (!confirm('Isso apaga a configuração atual do WhatsApp para você informar de novo. Continuar?')) {
       return;
     }
 
@@ -388,11 +388,11 @@ export function WhatsAppConfig() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || 'Failed to reset configuration');
+        toast.error(data.error || 'Falha ao redefinir a configuração');
         return;
       }
 
-      toast.success('Configuration cleared. You can now re-enter your credentials.');
+      toast.success('Configuração apagada. Você já pode informar as credenciais de novo.');
       setConfig(null);
       setPhoneNumberId('');
       setWabaId('');
@@ -404,7 +404,7 @@ export function WhatsAppConfig() {
       setStatusMessage('');
     } catch (err) {
       console.error('Reset error:', err);
-      toast.error('Failed to reset configuration');
+      toast.error('Falha ao redefinir a configuração');
     } finally {
       setResetting(false);
     }

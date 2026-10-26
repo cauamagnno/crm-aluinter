@@ -1,34 +1,63 @@
-name: wacrm
+name: crm-aluinter
 
 services:
+  db:
+    container_name: crm-aluinter-db
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: crm-aluinter
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d crm-aluinter']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    image: pgvector/pgvector:pg16
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: crm-aluinter
+      SEED_DEMO: ${SEED_DEMO:-1}
+    volumes:
+      - ./db/init:/sql/init:ro
+      - ./supabase/migrations:/sql/migrations:ro
+      - ./supabase/seed.sql:/sql/seed.sql:ro
+      - ./scripts/docker-migrate.sh:/scripts/docker-migrate.sh:ro
+    entrypoint: ['bash', '/scripts/docker-migrate.sh']
+    restart: 'no'
+
   app:
+    container_name: crm-aluinter
     build:
       context: .
-      # NEXT_PUBLIC_* vars are inlined at build time — forward them
-      # from .env.local as build args. Changing any of them requires
-      # a rebuild (docker compose up --build).
       args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
-        NEXT_PUBLIC_APP_LOCALE: ${NEXT_PUBLIC_APP_LOCALE:-en}
-    # Runtime (server-only) secrets come from .env.local; they are
-    # never baked into the image.
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3004}
+        NEXT_PUBLIC_APP_LOCALE: ${NEXT_PUBLIC_APP_LOCALE:-pt}
+        AUTH_SECRET: ${AUTH_SECRET:-crm-aluinter-local-dev-secret}
     env_file:
-      - .env.local
-    # The server always listens on 3000 inside the container. Pinned
-    # here because `environment` wins over `env_file`, so a stray PORT
-    # in .env.local can't desync the app from the mapping and the
-    # healthcheck below.
+      - .env.docker.local
     environment:
       PORT: 3000
-    # Reach Supabase on the host (e.g. `supabase start`) — 127.0.0.1
-    # inside the container is the app itself, not your machine.
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
-    # Host side only — HOST_PORT=8080 publishes the app on :8080.
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/crm-aluinter
+      AUTH_SECRET: ${AUTH_SECRET:-crm-aluinter-local-dev-secret}
+      STORAGE_DIR: /tmp/crm-aluinter-storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     ports:
-      - '${HOST_PORT:-3000}:3000'
+      - '3004:3000'
     restart: unless-stopped
     healthcheck:
       test:
@@ -41,4 +70,8 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 20s
+
+volumes:
+  pgdata:
+    name: crm-aluinter-pgdata

@@ -365,6 +365,22 @@ export interface PipelineStage {
 }
 
 export type DealStatus = 'open' | 'won' | 'lost';
+export type DealDisplayStatus = DealStatus | 'paused';
+
+export interface DealTask {
+  id: string;
+  account_id: string;
+  deal_id: string;
+  title: string;
+  description?: string | null;
+  assignee_id?: string | null;
+  due_at: string;
+  kind: string;
+  done_at?: string | null;
+  created_by: string;
+  created_at: string;
+  assignee?: Profile;
+}
 
 export interface Deal {
   id: string;
@@ -384,11 +400,13 @@ export interface Deal {
   notes?: string;
   expected_close_date?: string;
   status?: DealStatus;
+  paused?: boolean;
   created_at: string;
   updated_at?: string;
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;
+  next_task?: DealTask | null;
 }
 
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';

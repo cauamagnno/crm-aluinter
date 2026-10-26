@@ -252,38 +252,18 @@ export default function JoinPage() {
               terminal for this token, so no retry — just the
               signup/sign-in escape hatches. */}
           {peek.reason === 'server_error' ? (
-            <>
-              <Button
-                onClick={loadPeekAndAuth}
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                Try again
-              </Button>
-              <Link href="/signup">
-                <Button
-                  variant="outline"
-                  className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  Create a new account instead
-                </Button>
-              </Link>
-            </>
+            <Button
+              onClick={loadPeekAndAuth}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Tentar de novo
+            </Button>
           ) : (
-            <>
-              <Link href="/signup">
-                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                  Create a new account instead
-                </Button>
-              </Link>
-              <Link href="/login">
-                <Button
-                  variant="outline"
-                  className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  Sign in
-                </Button>
-              </Link>
-            </>
+            <Link href="/login">
+              <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                Ir para o login
+              </Button>
+            </Link>
           )}
         </CardContent>
       </Card>
@@ -414,7 +394,7 @@ export default function JoinPage() {
       <CardContent className="flex flex-col gap-2">
         <Link href={`/signup?invite=${encodeURIComponent(token!)}`}>
           <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-            Create account &amp; join
+            Criar conta e entrar no time
           </Button>
         </Link>
         <Link href={`/login?invite=${encodeURIComponent(token!)}`}>
@@ -422,7 +402,7 @@ export default function JoinPage() {
             variant="outline"
             className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            I already have an account
+            Já tenho acesso
           </Button>
         </Link>
       </CardContent>
