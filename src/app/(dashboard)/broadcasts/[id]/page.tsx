@@ -41,6 +41,7 @@ import {
   getRecipientStatus,
 } from '@/lib/broadcast-status';
 import { useTranslations } from 'next-intl';
+import { useCan } from '@/hooks/use-can';
 
 interface StatCardProps {
   label: string;
@@ -149,6 +150,8 @@ export default function BroadcastDetailPage() {
   const router = useRouter();
   const t = useTranslations('Broadcasts.detail');
   const tStatus = useTranslations('Broadcasts.status');
+  const canDelete = useCan('delete-records');
+  const canExport = useCan('export-records');
   const broadcastId = params.id as string;
 
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
@@ -369,7 +372,7 @@ export default function BroadcastDetailPage() {
             "Delete Pipeline" flow. Mid-send broadcasts can't be deleted
             because orphaning in-flight Meta messages would leave the
             funnel inconsistent. */}
-        {confirmDelete ? (
+        {canDelete && confirmDelete ? (
           <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm">
             <span className="text-red-300">{t('deletePrompt')}</span>
             <Button
@@ -390,7 +393,7 @@ export default function BroadcastDetailPage() {
               {deleting ? t('deleting') : t('confirm')}
             </Button>
           </div>
-        ) : (
+        ) : canDelete ? (
           <Button
             variant="outline"
             size="sm"
@@ -556,16 +559,18 @@ export default function BroadcastDetailPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={recipients.length === 0}
-              className="border-border text-muted-foreground hover:bg-muted"
-            >
-              <Download className="h-3.5 w-3.5" />
-              {t('exportCsv')}
-            </Button>
+            {canExport && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={recipients.length === 0}
+                className="border-border text-muted-foreground hover:bg-muted"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {t('exportCsv')}
+              </Button>
+            )}
           </div>
         </div>
 

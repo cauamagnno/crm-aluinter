@@ -15,12 +15,13 @@
 // changes a one-file diff.
 // ============================================================
 
-export type AccountRole = "owner" | "admin" | "agent" | "viewer";
+export type AccountRole = "owner" | "admin" | "gestor" | "agent" | "viewer";
 
 /** Ordered list of every valid role, lowest privilege first. */
 export const ACCOUNT_ROLES: readonly AccountRole[] = [
   "viewer",
   "agent",
+  "gestor",
   "admin",
   "owner",
 ] as const;
@@ -32,8 +33,10 @@ export const ACCOUNT_ROLES: readonly AccountRole[] = [
 export function roleRank(role: AccountRole): number {
   switch (role) {
     case "owner":
-      return 4;
+      return 5;
     case "admin":
+      return 4;
+    case "gestor":
       return 3;
     case "agent":
       return 2;
@@ -68,6 +71,20 @@ export function isAccountRole(value: unknown): value is AccountRole {
 
 /** Owner / admin: invite, remove, change roles. */
 export function canManageMembers(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
+/**
+ * Admin / owner: delete records and export data.
+ * Gestor sees the whole team but cannot delete or export.
+ * Vendedor cannot delete or export either.
+ */
+export function canDeleteRecords(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
+/** Same gate as delete: admin and owner only. */
+export function canExportRecords(role: AccountRole): boolean {
   return hasMinRole(role, "admin");
 }
 

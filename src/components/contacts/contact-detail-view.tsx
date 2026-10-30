@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { addContactTag, deleteContactTag } from '@/lib/contacts/tag-api';
 import { useAuth } from '@/hooks/use-auth';
+import { useCan } from '@/hooks/use-can';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal, MessageTemplate } from '@/types';
@@ -56,6 +57,7 @@ export function ContactDetailView({
   onUpdated,
 }: ContactDetailViewProps) {
   const t = useTranslations('Contacts.detailView');
+  const canDelete = useCan('delete-records');
   const supabase = createClient();
   const { accountId, defaultCurrency } = useAuth();
 
@@ -141,7 +143,34 @@ export function ContactDetailView({
       .eq('contact_id', contactId)
       .order('created_at', { ascending: false });
 
-    if (data) setNotes(data);
+    if (data) {
+      const authorIds = [
+        ...new Set(
+          (data as ContactNote[])
+            .map((note) => note.user_id)
+            .filter(Boolean),
+        ),
+      ];
+      const emails = new Map<string, string>();
+      if (authorIds.length > 0) {
+        const { data: people } = await supabase
+          .from('profiles')
+          .select('user_id, email')
+          .in('user_id', authorIds);
+        for (const person of (people ?? []) as Array<{
+          user_id: string;
+          email: string | null;
+        }>) {
+          if (person.email) emails.set(person.user_id, person.email);
+        }
+      }
+      setNotes(
+        (data as ContactNote[]).map((note) => ({
+          ...note,
+          author_email: emails.get(note.user_id) ?? null,
+        })),
+      );
+    }
     setLoadingNotes(false);
   }, [contactId, supabase]);
 
@@ -619,17 +648,20 @@ export function ContactDetailView({
                           <p className="text-sm text-muted-foreground whitespace-pre-wrap flex-1">
                             {note.note_text}
                           </p>
-                          <button
-                            onClick={() => deleteNote(note.id)}
-                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all cursor-pointer shrink-0"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => deleteNote(note.id)}
+                              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all cursor-pointer shrink-0"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1.5">
-                          {new Date(note.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
+                          {note.author_email ? `${note.author_email} · ` : ''}
+                          {new Date(note.created_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
                             year: 'numeric',
                             hour: '2-digit',
                             minute: '2-digit',

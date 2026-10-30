@@ -88,6 +88,8 @@ export interface SendMessageParams {
   /** Structured payload for `messageType === 'interactive'`. */
   interactivePayload?: InteractiveMessagePayload | null;
   replyToMessageId?: string | null;
+  /** Auth user id of the logged-in agent. Stored on the message history. */
+  senderUserId?: string | null;
 }
 
 export interface SendMessageResult {
@@ -201,6 +203,7 @@ export async function sendMessageToConversation(
     templateMessageParams,
     interactivePayload,
     replyToMessageId,
+    senderUserId,
   } = params;
 
   if (!conversationId) {
@@ -482,6 +485,7 @@ export async function sendMessageToConversation(
       message_id: waMessageId,
       status: 'sent',
       reply_to_message_id: replyToMessageId || null,
+      ...(senderUserId ? { sender_id: senderUserId } : {}),
     })
     .select()
     .single();

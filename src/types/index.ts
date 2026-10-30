@@ -153,6 +153,8 @@ export interface ContactNote {
   user_id: string;
   note_text: string;
   created_at: string;
+  /** Filled in the UI from the author's profile. Not a DB column. */
+  author_email?: string | null;
 }
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';

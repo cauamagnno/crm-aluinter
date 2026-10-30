@@ -51,6 +51,12 @@ const ROLE_CHIP: Record<
     className:
       "border-primary/40 bg-primary/10 text-primary",
   },
+  gestor: {
+    icon: Users,
+    labelKey: "roleGestor",
+    className:
+      "border-border bg-muted text-foreground",
+  },
   agent: {
     icon: UserCog,
     labelKey: "roleAgent",

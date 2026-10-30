@@ -104,6 +104,11 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                     {it.text}
+                    {it.actor ? (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {it.actor}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="flex-shrink-0 text-xs text-muted-foreground tabular-nums">
                     {relativeTime(it.at, t)}

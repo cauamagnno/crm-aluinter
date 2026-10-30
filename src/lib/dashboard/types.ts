@@ -64,4 +64,6 @@ export interface ActivityItem {
   at: string
   /** Optional deep-link for the whole row (not all items have a target). */
   href?: string
+  /** E-mail of the logged-in user who created the record, when known. */
+  actor?: string
 }

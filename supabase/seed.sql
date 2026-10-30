@@ -431,14 +431,14 @@ BEGIN
     (2,  v_stage_quote, 'Esquadrias Litoral — casa de praia',  62400, 'Guarda-corpo + portas de correr', INTERVAL '10 days'),
     (8,  v_stage_quote, 'Escola Horizonte — bloco B',          38800, 'Janelas pivotantes',             INTERVAL '18 days'),
     (9,  v_stage_nego,  'Residencial Parque — 42 unidades',    188000,'Engenharia revisando memorial',  INTERVAL '9 days'),
-    (10, v_stage_lead,  'Portas & Vidros — reposição',         18200, 'Lead Instagram',                 INTERVAL '25 days'),
+    (10, v_stage_lead,  'Portas & Vidros — reposição',         18200, 'Lead do Instagram',               INTERVAL '25 days'),
     (11, v_stage_lead,  'Casa Nova — vitrine',                 22100, 'Porta automática',               INTERVAL '14 days'),
     (14, v_stage_qual,  'Oficinas Metro — portas industriais', 31200, 'Pintura eletrostática',          INTERVAL '16 days'),
     (17, v_stage_lead,  'Pet Shop Amigo — vitrine',            14800, 'Lead Google',                    INTERVAL '22 days'),
     (19, v_stage_nego,  'Salão Estilo — box e espelhos',       27400, 'Aguardando cor',                 INTERVAL '8 days'),
     (20, v_stage_qual,  'Condomínio Recreio — halls',          51800, '12 halls, 4 andares',            INTERVAL '15 days'),
     (22, v_stage_quote, 'Galpão Logística Norte',              91000, 'Portas seccionadas',             INTERVAL '19 days'),
-    (28, v_stage_lead,  'Lead Instagram — Wagner',             9600,  'Primeiro contato hoje',          INTERVAL '30 days')
+    (28, v_stage_lead,  'Lead do Instagram — Wagner',           9600,  'Primeiro contato hoje',          INTERVAL '30 days')
   ) AS d(idx, stage_id, title, value, notes, close_in);
 
   -- Stale open deal (follow-up off cadence)

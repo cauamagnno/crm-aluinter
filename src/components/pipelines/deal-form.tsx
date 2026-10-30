@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useCan } from "@/hooks/use-can";
 import { DEFAULT_CURRENCY } from "@/lib/currency";
 import type {
   Contact,
@@ -54,7 +55,8 @@ export function DealForm({
 }: DealFormProps) {
   const t = useTranslations("Pipelines.form");
   const supabase = createClient();
-  const { accountId, defaultCurrency } = useAuth();
+  const { accountId, accountRole, defaultCurrency, profile } = useAuth();
+  const canDelete = useCan("delete-records");
 
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
@@ -97,11 +99,11 @@ export function DealForm({
       setValue("");
       setContactId("");
       setStageId(defaultStageId || stages[0]?.id || "");
-      setAssignedTo("");
+      setAssignedTo(accountRole === "agent" ? (profile?.id ?? "") : "");
       setExpectedCloseDate("");
       setNotes("");
     }
-  }, [open, deal, defaultStageId, stages, defaultCurrency]);
+  }, [open, deal, defaultStageId, stages, defaultCurrency, accountRole, profile?.id]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Load supporting data once the sheet is open
@@ -162,7 +164,9 @@ export function DealForm({
       contact_id: contactId,
       pipeline_id: pipelineId,
       stage_id: stageId,
-      assigned_to: assignedTo || null,
+      assigned_to:
+        assignedTo ||
+        (accountRole === "agent" ? (profile?.id ?? null) : null),
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
     };
@@ -430,6 +434,7 @@ export function DealForm({
             </div>
 
             {deal &&
+              canDelete &&
               (confirmDelete ? (
                 <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs">
                   <span className="text-red-300">{t("deletePrompt")}</span>

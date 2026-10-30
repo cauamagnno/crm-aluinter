@@ -18,6 +18,23 @@ import type {
   ResponseTimeSummary,
 } from './types'
 
+function broadcastStatusLabel(status: string): string {
+  switch (status) {
+    case 'sent':
+      return 'enviado'
+    case 'sending':
+      return 'enviando'
+    case 'scheduled':
+      return 'agendado'
+    case 'draft':
+      return 'rascunho'
+    case 'failed':
+      return 'falhou'
+    default:
+      return status
+  }
+}
+
 // ------------------------------------------------------------
 // All client-side aggregation. RLS scopes every query to the
 // signed-in user automatically, so we never pass user_id explicitly
@@ -280,23 +297,22 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   const [msgs, contacts, deals, broadcasts, autoLogs] = await Promise.all([
     db
       .from('messages')
-      .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
-      .eq('sender_type', 'customer')
+      .select('id, content_text, sender_type, sender_id, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
       .order('created_at', { ascending: false })
       .limit(10),
     db
       .from('contacts')
-      .select('id, name, phone, created_at')
+      .select('id, name, phone, created_at, user_id')
       .order('created_at', { ascending: false })
       .limit(10),
     db
       .from('deals')
-      .select('id, title, updated_at, stage:pipeline_stages(name)')
+      .select('id, title, updated_at, user_id, stage:pipeline_stages(name)')
       .order('updated_at', { ascending: false })
       .limit(10),
     db
       .from('broadcasts')
-      .select('id, name, status, total_recipients, created_at')
+      .select('id, name, status, total_recipients, created_at, user_id')
       .order('created_at', { ascending: false })
       .limit(5),
     db
@@ -306,13 +322,15 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       .limit(10),
   ])
 
-  const items: ActivityItem[] = []
+  const items: Array<ActivityItem & { actorUserId?: string | null }> = []
 
   // PostgREST returns nested selections as arrays by default, even when
   // the foreign key is 1:1. We normalise by taking [0] on each level.
   for (const m of (msgs.data ?? []) as unknown as Array<{
     id: string
     content_text: string | null
+    sender_type: string
+    sender_id: string | null
     created_at: string
     conversation_id: string
     conversations:
@@ -322,23 +340,26 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   }>) {
     const conv = Array.isArray(m.conversations) ? m.conversations[0] : m.conversations
     const contact = Array.isArray(conv?.contacts) ? conv?.contacts[0] : conv?.contacts
-    const who = contact?.name || contact?.phone || 'Unknown'
+    const who = contact?.name || contact?.phone || 'Desconhecido'
+    const fromAgent = m.sender_type === 'agent'
     items.push({
       id: `msg-${m.id}`,
       kind: 'message',
-      text: `New message from ${who}`,
+      text: fromAgent ? `Mensagem enviada para ${who}` : `Nova mensagem de ${who}`,
       at: m.created_at,
       href: `/inbox?c=${m.conversation_id}`,
+      actorUserId: fromAgent ? m.sender_id : null,
     })
   }
 
-  for (const c of (contacts.data ?? []) as Array<{ id: string; name: string | null; phone: string; created_at: string }>) {
+  for (const c of (contacts.data ?? []) as Array<{ id: string; name: string | null; phone: string; created_at: string; user_id?: string | null }>) {
     items.push({
       id: `contact-${c.id}`,
       kind: 'contact',
-      text: `New contact: ${c.name || c.phone}`,
+      text: `Novo contato: ${c.name || c.phone}`,
       at: c.created_at,
       href: '/contacts',
+      actorUserId: c.user_id,
     })
   }
 
@@ -346,6 +367,7 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
     id: string
     title: string
     updated_at: string
+    user_id?: string | null
     stage: { name: string }[] | { name: string } | null
   }>) {
     const stage = Array.isArray(d.stage) ? d.stage[0] : d.stage
@@ -353,10 +375,11 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       id: `deal-${d.id}`,
       kind: 'deal',
       text: stage?.name
-        ? `Deal "${d.title}" in ${stage.name}`
-        : `Deal "${d.title}" updated`,
+        ? `Negociação "${d.title}" em ${stage.name}`
+        : `Negociação "${d.title}" atualizada`,
       at: d.updated_at,
       href: '/pipelines',
+      actorUserId: d.user_id,
     })
   }
 
@@ -366,17 +389,19 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
     status: string
     total_recipients: number
     created_at: string
+    user_id?: string | null
   }>) {
     const label =
       b.status === 'sent'
-        ? `sent to ${b.total_recipients} contacts`
-        : `${b.status} (${b.total_recipients} recipients)`
+        ? `enviado para ${b.total_recipients} contatos`
+        : `${broadcastStatusLabel(b.status)} (${b.total_recipients} destinatários)`
     items.push({
       id: `broadcast-${b.id}`,
       kind: 'broadcast',
-      text: `Broadcast "${b.name}" ${label}`,
+      text: `Disparo "${b.name}" ${label}`,
       at: b.created_at,
       href: '/broadcasts',
+      actorUserId: b.user_id,
     })
   }
 
@@ -390,17 +415,35 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   }>) {
     const automation = Array.isArray(l.automation) ? l.automation[0] : l.automation
     const contact = Array.isArray(l.contact) ? l.contact[0] : l.contact
-    const who = contact?.name || contact?.phone || 'a contact'
-    const autoName = automation?.name || 'Automation'
+    const who = contact?.name || contact?.phone || 'um contato'
+    const autoName = automation?.name || 'Automação'
     items.push({
       id: `auto-${l.id}`,
       kind: 'automation',
-      text: `Automation "${autoName}" ${l.status === 'failed' ? 'failed for' : 'triggered for'} ${who}`,
+      text: `Automação "${autoName}" ${l.status === 'failed' ? 'falhou para' : 'disparou para'} ${who}`,
       at: l.created_at,
     })
   }
 
+  const actorIds = [
+    ...new Set(items.map((item) => item.actorUserId).filter((id): id is string => !!id)),
+  ]
+  const emails = new Map<string, string>()
+  if (actorIds.length > 0) {
+    const { data: people } = await db
+      .from('profiles')
+      .select('user_id, email')
+      .in('user_id', actorIds)
+    for (const person of (people ?? []) as Array<{ user_id: string; email: string | null }>) {
+      if (person.email) emails.set(person.user_id, person.email)
+    }
+  }
+
   return items
+    .map(({ actorUserId, ...item }) => ({
+      ...item,
+      actor: actorUserId ? emails.get(actorUserId) : undefined,
+    }))
     .sort((a, b) => (a.at > b.at ? -1 : a.at < b.at ? 1 : 0))
     .slice(0, limit)
 }
