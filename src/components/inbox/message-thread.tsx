@@ -152,7 +152,7 @@ const DOODLE_BG_CLASSES =
 function agentLogin(
   message: Message,
   profiles: Profile[],
-  currentUser?: { id?: string; email?: string | null },
+  currentUser?: { id?: string; email?: string | null } | null,
 ): string | null {
   if (message.sender_type === "customer") return null;
   if (message.sender_type === "bot" || message.ai_generated) return null;

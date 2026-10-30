@@ -409,7 +409,7 @@ export default function BroadcastDetailPage() {
             <Trash2 className="h-3.5 w-3.5" />
             {t('delete')}
           </Button>
-        )}
+        ) : null}
       </div>
 
       {/* Resume / retry (issue #472). Only rendered when there is
