@@ -447,7 +447,9 @@
       "noMoreTags": "모든 라벨이 이미 이 연락처에 있습니다",
       "tagCreated": "라벨을 만들었습니다",
       "tagFailed": "라벨을 업데이트하지 못했습니다",
+      "advanceStage": "단계 진행",
       "advanceTo": "{stage}(으)로 이동",
+      "advanced": "{stage}(으)로 이동했습니다",
       "advanceFailed": "딜을 이동하지 못했습니다",
       "addNotePlaceholder": "메모 추가..."
     },

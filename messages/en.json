@@ -447,7 +447,9 @@
       "noMoreTags": "Every label is already on this contact",
       "tagCreated": "Label created",
       "tagFailed": "Couldn’t update the label",
+      "advanceStage": "Advance stage",
       "advanceTo": "Move to {stage}",
+      "advanced": "Deal moved to {stage}",
       "advanceFailed": "Couldn’t move the deal",
       "addNotePlaceholder": "Add a note..."
     },

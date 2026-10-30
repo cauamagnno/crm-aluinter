@@ -450,7 +450,9 @@
       "noMoreTags": "Todas as etiquetas já estão neste contato",
       "tagCreated": "Etiqueta criada",
       "tagFailed": "Não foi possível atualizar a etiqueta",
+      "advanceStage": "Avançar etapa",
       "advanceTo": "Avançar para {stage}",
+      "advanced": "Negociação avançada para {stage}",
       "advanceFailed": "Não foi possível avançar a negociação",
       "addNotePlaceholder": "Adicionar uma nota..."
     },

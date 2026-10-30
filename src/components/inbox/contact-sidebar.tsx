@@ -264,28 +264,26 @@ export function ContactSidebar({
     }
   }, [accountId, canCreateTags, canEdit, contact, newTagName, refreshTags, tSidebar, user?.id]);
 
-  const nextStageFor = useCallback(
+  const laterStagesFor = useCallback(
     (deal: Deal) => {
       const ordered = stages
         .filter((stage) => stage.pipeline_id === deal.pipeline_id)
         .sort((a, b) => a.position - b.position);
       const index = ordered.findIndex((stage) => stage.id === deal.stage_id);
-      if (index < 0) return null;
-      return ordered[index + 1] ?? null;
+      if (index < 0) return [];
+      return ordered.slice(index + 1);
     },
     [stages],
   );
 
   const handleAdvanceDeal = useCallback(
-    async (deal: Deal) => {
-      if (!canEdit) return;
-      const next = nextStageFor(deal);
-      if (!next) return;
+    async (deal: Deal, stage: PipelineStage) => {
+      if (!canEdit || stage.id === deal.stage_id) return;
       setMovingDealId(deal.id);
       const supabase = createClient();
       const { error } = await supabase
         .from("deals")
-        .update({ stage_id: next.id })
+        .update({ stage_id: stage.id })
         .eq("id", deal.id);
       setMovingDealId(null);
       if (error) {
@@ -294,11 +292,12 @@ export function ContactSidebar({
       }
       setDeals((prev) =>
         prev.map((row) =>
-          row.id === deal.id ? { ...row, stage_id: next.id, stage: next } : row,
+          row.id === deal.id ? { ...row, stage_id: stage.id, stage } : row,
         ),
       );
+      toast.success(tSidebar("advanced", { stage: stage.name }));
     },
-    [canEdit, nextStageFor, tSidebar],
+    [canEdit, tSidebar],
   );
 
   const handleCopyPhone = useCallback(async () => {
@@ -386,8 +385,8 @@ export function ContactSidebar({
   }));
 
   return (
-    <div className="flex h-full w-80 flex-col border-l border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border bg-card">
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold text-foreground">
           {tSidebar("title")}
         </h2>
@@ -403,7 +402,7 @@ export function ContactSidebar({
         )}
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="px-4 py-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-base font-semibold text-primary">
             {contact.avatar_url ? (
@@ -624,7 +623,8 @@ export function ContactSidebar({
             ) : (
               <div className="space-y-2">
                 {deals.map((deal) => {
-                  const next = nextStageFor(deal);
+                  const later = laterStagesFor(deal);
+                  const moving = movingDealId === deal.id;
                   return (
                   <div key={deal.id} className="rounded-lg bg-muted px-3 py-2">
                     <p className="text-sm font-medium text-foreground">
@@ -644,15 +644,34 @@ export function ContactSidebar({
                         </span>
                       )}
                     </div>
-                    {canEdit && next && (
-                      <button
-                        type="button"
-                        disabled={movingDealId === deal.id}
-                        onClick={() => void handleAdvanceDeal(deal)}
-                        className="mt-2 text-xs font-medium text-primary hover:underline disabled:opacity-60"
-                      >
-                        {tSidebar("advanceTo", { stage: next.name })}
-                      </button>
+                    {canEdit && later.length > 0 && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          disabled={moving}
+                          className="mt-2 flex h-8 w-full items-center justify-between rounded-lg border border-border bg-background px-2 text-xs font-medium text-primary hover:bg-accent disabled:opacity-60"
+                        >
+                          <span>{tSidebar("advanceStage")}</span>
+                          {moving ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          )}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="start"
+                          className="w-56 border-border bg-popover"
+                        >
+                          {later.map((stage) => (
+                            <DropdownMenuItem
+                              key={stage.id}
+                              onClick={() => void handleAdvanceDeal(deal, stage)}
+                              className="text-sm text-popover-foreground"
+                            >
+                              {tSidebar("advanceTo", { stage: stage.name })}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                   );
