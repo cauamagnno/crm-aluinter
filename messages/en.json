@@ -311,6 +311,7 @@
       "me": " (me)",
       "noMessagesYet": "No messages yet",
       "sendTemplateHint": "Send a template to start the conversation",
+      "unknown": "Unknown",
       "selectConversation": "Select a conversation",
       "selectConversationHint": "Choose a conversation from the left to start messaging",
       "today": "Today",
@@ -421,12 +422,33 @@
       "send": "Send template"
     },
     "sidebar": {
+      "title": "Contacts",
+      "close": "Close",
+      "unavailable": "Unavailable",
+      "editContact": "Edit contact",
+      "deleteContact": "Delete contact",
+      "addNote": "Add contact note",
+      "conversationActions": "Conversation actions",
+      "assignee": "Salesperson",
+      "assignToMe": "Assign to me",
+      "none": "None",
+      "collapseSection": "Collapse {section}",
+      "expandSection": "Expand {section}",
       "contactInfo": "Contact info",
       "tags": "Tags",
-      "notes": "Notes",
+      "notes": "Contact notes",
       "deals": "Deals",
       "noTags": "No tags",
       "noDeals": "No deals",
+      "addTag": "Add label",
+      "createTag": "Create",
+      "newTagPlaceholder": "New label",
+      "removeTag": "Remove {name}",
+      "noMoreTags": "Every label is already on this contact",
+      "tagCreated": "Label created",
+      "tagFailed": "Couldn’t update the label",
+      "advanceTo": "Move to {stage}",
+      "advanceFailed": "Couldn’t move the deal",
       "addNotePlaceholder": "Add a note..."
     },
     "aiBanner": {
@@ -665,7 +687,9 @@
     },
     "board": {
       "dropDealHere": "Drop a deal here",
-      "addDeal": "Add Deal"
+      "addDeal": "Add Deal",
+      "loadMore": "Load more",
+      "columnCountMore": "{shown} of {total}"
     },
     "card": {
       "noContact": "No contact",

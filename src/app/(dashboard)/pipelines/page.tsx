@@ -58,6 +58,8 @@ import { dealMatchesStatusFilter } from "@/lib/pipelines/status";
 type StatusFilter = "all" | "open" | "won" | "lost" | "paused" | "not_paused";
 type SortFilter = "created_desc" | "created_asc" | "value_desc";
 
+const DEALS_PAGE_SIZE = 15;
+
 function attachNextTasks(deals: Deal[], tasks: DealTask[]): Deal[] {
   const openByDeal = new Map<string, DealTask[]>();
   for (const task of tasks) {
@@ -85,7 +87,11 @@ export default function PipelinesPage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
   const [stages, setStages] = useState<PipelineStage[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const [slimDeals, setSlimDeals] = useState<Deal[]>([]);
+  const [richDeals, setRichDeals] = useState<Deal[]>([]);
+  const [pageLimit, setPageLimit] = useState<Record<string, number>>({});
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [hydrateEpoch, setHydrateEpoch] = useState(0);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -133,13 +139,26 @@ export default function PipelinesPage() {
     [supabase],
   );
 
-  const loadDeals = useCallback(
+  const loadSlimDeals = useCallback(
     async (pipelineId: string) => {
       const { data } = await supabase
         .from("deals")
+        .select(
+          "id, pipeline_id, stage_id, title, value, currency, status, paused, assigned_to, created_at, updated_at, expected_close_date, contact_id",
+        )
+        .eq("pipeline_id", pipelineId);
+      return (data ?? []) as Deal[];
+    },
+    [supabase],
+  );
+
+  const hydrateDeals = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return [] as Deal[];
+      const { data } = await supabase
+        .from("deals")
         .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
-        .eq("pipeline_id", pipelineId)
-        .order("created_at", { ascending: false });
+        .in("id", ids);
       const rows = (data ?? []) as Deal[];
       if (rows.length === 0) return rows;
       const { data: tasks } = await supabase
@@ -227,23 +246,29 @@ export default function PipelinesPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStages([]);
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDeals([]);
+      setSlimDeals([]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRichDeals([]);
       return;
     }
     let cancelled = false;
+    setCardsLoading(true);
+    setPageLimit({});
+    setSlimDeals([]);
+    setRichDeals([]);
     (async () => {
-      const [s, d] = await Promise.all([
+      const [s, slim] = await Promise.all([
         loadStages(selectedPipelineId),
-        loadDeals(selectedPipelineId),
+        loadSlimDeals(selectedPipelineId),
       ]);
       if (cancelled) return;
       setStages(s);
-      setDeals(d);
+      setSlimDeals(slim);
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedPipelineId, loadStages, loadDeals]);
+  }, [selectedPipelineId, loadStages, loadSlimDeals]);
 
   const refreshPipelines = useCallback(async () => {
     const list = await loadPipelines();
@@ -260,14 +285,18 @@ export default function PipelinesPage() {
 
   const refreshDeals = useCallback(async () => {
     if (!selectedPipelineId) return;
-    setDeals(await loadDeals(selectedPipelineId));
-  }, [loadDeals, selectedPipelineId]);
+    setCardsLoading(true);
+    setRichDeals([]);
+    setHydrateEpoch((n) => n + 1);
+    setSlimDeals(await loadSlimDeals(selectedPipelineId));
+  }, [loadSlimDeals, selectedPipelineId]);
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
-      setDeals((prev) =>
-        prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
-      );
+      const move = (prev: Deal[]) =>
+        prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d));
+      setSlimDeals(move);
+      setRichDeals(move);
       const { error } = await supabase
         .from("deals")
         .update({ stage_id: newStageId })
@@ -351,12 +380,11 @@ export default function PipelinesPage() {
   const activeFilterCount = countActiveFilters(filters);
 
   const visibleDeals = useMemo(() => {
-    let rows = [...deals];
+    let rows = [...slimDeals];
     if (ownerFilter !== "all") {
       rows = rows.filter((d) => d.assigned_to === ownerFilter);
     }
     rows = rows.filter((d) => dealMatchesStatusFilter(d, statusFilter));
-    if (filters.withoutTask) rows = rows.filter((d) => !d.next_task);
     if (filters.name.trim()) {
       const q = filters.name.trim().toLowerCase();
       rows = rows.filter(
@@ -381,11 +409,6 @@ export default function PipelinesPage() {
         (d) => (d.expected_close_date ?? "") >= filters.closeFrom,
       );
     }
-    if (filters.nextTaskFrom) {
-      rows = rows.filter(
-        (d) => (d.next_task?.due_at ?? "").slice(0, 10) >= filters.nextTaskFrom,
-      );
-    }
     rows.sort((a, b) => {
       if (sortFilter === "value_desc") return Number(b.value || 0) - Number(a.value || 0);
       if (sortFilter === "created_asc") {
@@ -394,10 +417,75 @@ export default function PipelinesPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return rows;
-  }, [deals, ownerFilter, statusFilter, sortFilter, filters]);
+  }, [slimDeals, ownerFilter, statusFilter, sortFilter, filters]);
+
+  const cardWindows = useMemo(() => {
+    const map = new Map<string, { slice: Deal[]; total: number; value: number }>();
+    for (const stage of stages) {
+      const rows = visibleDeals.filter((d) => d.stage_id === stage.id);
+      const limit = pageLimit[stage.id] ?? DEALS_PAGE_SIZE;
+      map.set(stage.id, {
+        slice: rows.slice(0, limit),
+        total: rows.length,
+        value: rows.reduce((sum, d) => sum + Number(d.value || 0), 0),
+      });
+    }
+    return map;
+  }, [visibleDeals, stages, pageLimit]);
+
+  const neededIds = useMemo(
+    () => [...cardWindows.values()].flatMap((w) => w.slice.map((d) => d.id)),
+    [cardWindows],
+  );
+  const neededKey = neededIds.join(",");
+
+  useEffect(() => {
+    const missing = neededIds.filter((id) => !richDeals.some((d) => d.id === id));
+    if (missing.length === 0) {
+      setCardsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCardsLoading(true);
+    (async () => {
+      const rows = await hydrateDeals(missing);
+      if (cancelled) return;
+      setRichDeals((prev) => {
+        const byId = new Map(prev.map((d) => [d.id, d]));
+        for (const row of rows) byId.set(row.id, row);
+        return [...byId.values()];
+      });
+      setCardsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // richDeals is read to skip ids already hydrated; including it would refetch.
+    // hydrateEpoch forces a reload after a save clears the cache.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [neededKey, hydrateEpoch, hydrateDeals]);
+
+  const boardDeals = useMemo(() => {
+    const rich = new Map(richDeals.map((d) => [d.id, d]));
+    const out: Deal[] = [];
+    for (const stageWindow of cardWindows.values()) {
+      for (const slim of stageWindow.slice) {
+        const full = rich.get(slim.id);
+        if (full) out.push(full);
+      }
+    }
+    let rows = out;
+    if (filters.withoutTask) rows = rows.filter((d) => !d.next_task);
+    if (filters.nextTaskFrom) {
+      rows = rows.filter(
+        (d) => (d.next_task?.due_at ?? "").slice(0, 10) >= filters.nextTaskFrom,
+      );
+    }
+    return rows;
+  }, [cardWindows, richDeals, filters.withoutTask, filters.nextTaskFrom]);
 
   const liveEditingDeal =
-    deals.find((d) => d.id === editingDeal?.id) ?? editingDeal;
+    richDeals.find((d) => d.id === editingDeal?.id) ?? editingDeal;
 
   if (loading) {
     return (
@@ -584,7 +672,15 @@ export default function PipelinesPage() {
           <PipelineAnalytics stages={stages} deals={visibleDeals} />
           <PipelineBoard
             stages={stages}
-            deals={visibleDeals}
+            deals={boardDeals}
+            stageStats={cardWindows}
+            cardsLoading={cardsLoading}
+            onLoadMore={(stageId) =>
+              setPageLimit((prev) => ({
+                ...prev,
+                [stageId]: (prev[stageId] ?? DEALS_PAGE_SIZE) + DEALS_PAGE_SIZE,
+              }))
+            }
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleOpenDeal}
@@ -674,7 +770,7 @@ export default function PipelinesPage() {
         open={taskFormOpen}
         onOpenChange={setTaskFormOpen}
         deal={taskDeal}
-        deals={deals}
+        deals={visibleDeals}
         profiles={profiles}
         onSaved={refreshDeals}
       />

@@ -63,8 +63,10 @@ export function DealTaskForm({
   }, [open, deal, deals, profile?.id]);
 
   const selectedDeal = deals.find((d) => d.id === dealId) ?? deal;
+  const contactSource =
+    selectedDeal?.contact ? selectedDeal : dealId === deal?.id ? deal : selectedDeal;
   const company =
-    selectedDeal?.contact?.name || selectedDeal?.contact?.phone || "—";
+    contactSource?.contact?.name || contactSource?.contact?.phone || "—";
 
   async function handleSave() {
     if (!title.trim() || !assigneeId || !dueDate || !dealId) {
