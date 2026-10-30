@@ -32,6 +32,7 @@
     "dev": "next dev -p 3004",
     "dev:local": "next dev -p 3004",
     "start": "next start -p 3004",
+    "docker:db": "docker compose --env-file .env.docker.local up -d db && docker compose --env-file .env.docker.local run --rm migrate",
     "docker:up": "docker compose --env-file .env.docker.local up --build -d",
     "docker:down": "docker compose --env-file .env.docker.local down",
     "build": "next build",
