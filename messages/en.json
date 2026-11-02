@@ -23,6 +23,7 @@
     "notifications": "Notifications",
     "contacts": "Contacts",
     "pipelines": "Pipelines",
+    "tasks": "Tasks",
     "broadcasts": "Broadcasts",
     "automations": "Automations",
     "flows": "Flows",
@@ -56,9 +57,52 @@
     "openAccountMenu": "Open account menu",
     "defaultUser": "User",
     "defaultAvatar": "Avatar",
+    "tasks": "Tasks",
     "menuProfile": "Profile",
     "menuSettings": "Settings",
-    "menuSignOut": "Sign out"
+    "menuSignOut": "Sign out",
+    "soldThisMonth": "I sold this month",
+    "refreshSales": "Refresh this month’s sales"
+  },
+  "Tasks": {
+    "title": "Tasks",
+    "hint": "Only tasks assigned to you.",
+    "hintVisible": "Completed tasks you can see in this period. The dashboard number uses this same list.",
+    "emptyVisible": "No completed tasks match this filter.",
+    "create": "Create task",
+    "pending": "Open",
+    "done": "Done",
+    "allKinds": "All types",
+    "kindCall": "Call",
+    "kindWhatsapp": "WhatsApp",
+    "kindEmail": "Email",
+    "kindTask": "Task",
+    "from": "From",
+    "to": "To",
+    "empty": "None of your tasks match this filter.",
+    "loadError": "Couldn’t load tasks.",
+    "colTask": "Task",
+    "colStatus": "Status",
+    "colWhen": "Date and time",
+    "colDeal": "Deal",
+    "colValue": "Value",
+    "statusOpen": "Open",
+    "statusLate": "Overdue",
+    "statusDone": "Done",
+    "complete": "Complete",
+    "completed": "Task completed",
+    "completeFailed": "Couldn’t complete the task"
+  },
+  "Notifications": {
+    "title": "Notifications",
+    "description": "Conversations other teammates assign to you show up here.",
+    "markAll": "Mark all as read",
+    "retry": "Retry",
+    "emptyTitle": "No notifications yet",
+    "emptyBody": "You'll see an alert here when someone assigns you a conversation.",
+    "unread": "Unread",
+    "markReadFailed": "Failed to mark notification as read",
+    "markAllFailed": "Failed to mark all as read"
   },
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"
@@ -144,9 +188,45 @@
     "period": {
       "today": "Today",
       "week": "Week",
-      "month": "Month",
+      "lastWeek": "Last week",
+      "month": "This month",
+      "lastMonth": "Last month",
+      "last4Months": "Last 4 months",
+      "thisYear": "This year",
+      "custom": "Range",
       "from": "From",
       "to": "To"
+    },
+    "sales": {
+      "title": "Sales in period",
+      "source": "Source: deals won in the pipeline, by close date (closed_at). This is not Easy billing.",
+      "loadError": "Couldn’t load sales for this period.",
+      "created": "Deals created",
+      "won": "Sales",
+      "lost": "Lost deals",
+      "value": "Value",
+      "units": "Units",
+      "ticket": "Average ticket",
+      "lostValue": "Lost value: {value}",
+      "periodLabel": "{preset}",
+      "presets": {
+        "today": "Today",
+        "week": "This week",
+        "lastWeek": "Last week",
+        "month": "This month",
+        "lastMonth": "Last month",
+        "last4Months": "Last 4 months",
+        "thisYear": "This year",
+        "custom": "Range"
+      }
+    },
+    "tasks": {
+      "title": "Completed tasks",
+      "source": "Source: tasks completed in the period (deal_tasks.done_at), by type. Call, WhatsApp, and email. Older rows stored as “task” are excluded. The click opens the same list.",
+      "loadError": "Couldn’t load tasks for this period.",
+      "call": "Calls",
+      "whatsapp": "WhatsApp",
+      "email": "Emails"
     },
     "operacao": {
       "newContacts": "New contacts",
@@ -219,7 +299,7 @@
       "k5": {
         "title": "Revenue vs target",
         "target": "Portfolio target: {target} / month",
-        "formula": "Won deals this month ÷ monthly target, read against calendar pace.",
+        "formula": "Sum of deals with status won and closed_at in the period, divided by the target. This is not Easy billing.",
         "frequency": "Daily on the board, weekly in the reading",
         "hint": "This sums won pipeline deals. Invoiced revenue (R$400k per book / R$4M total) comes from Easy."
       },

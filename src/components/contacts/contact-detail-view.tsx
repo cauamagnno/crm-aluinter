@@ -58,6 +58,7 @@ export function ContactDetailView({
 }: ContactDetailViewProps) {
   const t = useTranslations('Contacts.detailView');
   const canDelete = useCan('delete-records');
+  const canEdit = useCan('send-messages');
   const supabase = createClient();
   const { accountId, defaultCurrency } = useAuth();
 
@@ -76,6 +77,8 @@ export function ContactDetailView({
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
+  const [editAssignedTo, setEditAssignedTo] = useState('');
+  const [owners, setOwners] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Tags tab
@@ -115,9 +118,21 @@ export function ContactDetailView({
       setEditPhone(data.phone);
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
+      setEditAssignedTo(data.assigned_to ?? '');
     }
     setLoading(false);
   }, [contactId, supabase]);
+
+  useEffect(() => {
+    if (!open) return;
+    supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .order('full_name')
+      .then(({ data }) => {
+        if (data) setOwners(data);
+      });
+  }, [open, supabase]);
 
   const fetchTags = useCallback(async () => {
     if (!contactId) return;
@@ -240,6 +255,7 @@ export function ContactDetailView({
         phone: editPhone.trim(),
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
+        assigned_to: editAssignedTo || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId);
@@ -549,6 +565,28 @@ export function ContactDetailView({
                       onChange={(e) => setEditCompany(e.target.value)}
                       className="bg-muted border-border text-foreground h-8 text-sm"
                     />
+                  </div>
+                  <div className="space-y-1.5 border-t border-border pt-3">
+                    <p className="text-xs font-medium text-foreground">{t('attributions')}</p>
+                    <Label className="text-muted-foreground text-xs">{t('owner')}</Label>
+                    {canEdit ? (
+                      <select
+                        value={editAssignedTo}
+                        onChange={(e) => setEditAssignedTo(e.target.value)}
+                        className="h-8 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
+                      >
+                        <option value="">{t('ownerNone')}</option>
+                        {owners.map((owner) => (
+                          <option key={owner.id} value={owner.id}>
+                            {owner.full_name || owner.email}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-sm text-foreground">
+                        {owners.find((owner) => owner.id === editAssignedTo)?.full_name || t('ownerNone')}
+                      </p>
+                    )}
                   </div>
                   <Button
                     onClick={saveDetails}

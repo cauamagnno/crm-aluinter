@@ -23,6 +23,7 @@
     "notifications": "알림",
     "contacts": "연락처",
     "pipelines": "파이프라인",
+    "tasks": "할 일",
     "broadcasts": "브로드캐스트",
     "automations": "자동화",
     "flows": "플로우",
@@ -56,9 +57,52 @@
     "openAccountMenu": "계정 메뉴 열기",
     "defaultUser": "사용자",
     "defaultAvatar": "아바타",
+    "tasks": "할 일",
     "menuProfile": "프로필",
     "menuSettings": "설정",
-    "menuSignOut": "로그아웃"
+    "menuSignOut": "로그아웃",
+    "soldThisMonth": "이번 달 내 판매",
+    "refreshSales": "이번 달 금액 새로고침"
+  },
+  "Tasks": {
+    "title": "할 일",
+    "hint": "나에게 배정된 할 일만 표시합니다.",
+    "hintVisible": "이 기간에 볼 수 있는 완료된 할 일입니다. 대시보드 숫자와 같은 목록입니다.",
+    "emptyVisible": "이 필터에 해당하는 완료된 할 일이 없습니다.",
+    "create": "할 일 만들기",
+    "pending": "진행 중",
+    "done": "완료",
+    "allKinds": "모든 유형",
+    "kindCall": "전화",
+    "kindWhatsapp": "WhatsApp",
+    "kindEmail": "이메일",
+    "kindTask": "할 일",
+    "from": "부터",
+    "to": "까지",
+    "empty": "이 필터에 해당하는 할 일이 없습니다.",
+    "loadError": "할 일을 불러오지 못했습니다.",
+    "colTask": "할 일",
+    "colStatus": "상태",
+    "colWhen": "날짜와 시간",
+    "colDeal": "딜",
+    "colValue": "금액",
+    "statusOpen": "열림",
+    "statusLate": "지연",
+    "statusDone": "완료",
+    "complete": "완료",
+    "completed": "할 일을 완료했습니다",
+    "completeFailed": "할 일을 완료하지 못했습니다"
+  },
+  "Notifications": {
+    "title": "알림",
+    "description": "다른 사람이 나에게 배정한 대화가 여기에 표시됩니다.",
+    "markAll": "모두 읽음으로 표시",
+    "retry": "다시 시도",
+    "emptyTitle": "아직 알림이 없습니다",
+    "emptyBody": "누군가 대화를 배정하면 여기에 알림이 나타납니다.",
+    "unread": "읽지 않음",
+    "markReadFailed": "알림을 읽음으로 표시하지 못했습니다",
+    "markAllFailed": "모두 읽음으로 표시하지 못했습니다"
   },
   "ModeToggle": {
     "switchMode": "{mode} 모드로 전환"
@@ -142,11 +186,47 @@
       "marketing": "Marketing"
     },
     "period": {
-      "today": "Today",
-      "week": "Week",
-      "month": "Month",
-      "from": "From",
-      "to": "To"
+      "today": "오늘",
+      "week": "이번 주",
+      "lastWeek": "지난주",
+      "month": "이번 달",
+      "lastMonth": "지난달",
+      "last4Months": "최근 4개월",
+      "thisYear": "올해",
+      "custom": "기간",
+      "from": "부터",
+      "to": "까지"
+    },
+    "sales": {
+      "title": "기간 판매",
+      "source": "출처: 파이프라인에서 성사된 딜, 마감일(closed_at). Easy 매출이 아닙니다.",
+      "loadError": "이 기간의 판매를 불러오지 못했습니다.",
+      "created": "생성된 딜",
+      "won": "판매",
+      "lost": "실패 딜",
+      "value": "금액",
+      "units": "건수",
+      "ticket": "평균 티켓",
+      "lostValue": "실패 금액: {value}",
+      "periodLabel": "{preset}",
+      "presets": {
+        "today": "오늘",
+        "week": "이번 주",
+        "lastWeek": "지난주",
+        "month": "이번 달",
+        "lastMonth": "지난달",
+        "last4Months": "최근 4개월",
+        "thisYear": "올해",
+        "custom": "기간"
+      }
+    },
+    "tasks": {
+      "title": "완료한 할 일",
+      "source": "출처: 기간 안에 완료된 할 일(deal_tasks.done_at), 유형별. 전화, WhatsApp, 이메일. 예전 “할 일” 유형은 빠집니다. 클릭하면 같은 목록이 열립니다.",
+      "loadError": "이 기간의 할 일을 불러오지 못했습니다.",
+      "call": "전화",
+      "whatsapp": "WhatsApp",
+      "email": "이메일"
     },
     "operacao": {
       "newContacts": "New contacts",
@@ -219,7 +299,7 @@
       "k5": {
         "title": "Revenue vs target",
         "target": "Portfolio target: {target} / month",
-        "formula": "Won deals this month ÷ monthly target, read against calendar pace.",
+        "formula": "기간 안 status가 won이고 closed_at인 딜 금액 합 ÷ 목표. Easy 매출이 아닙니다.",
         "frequency": "Daily on the board, weekly in the reading",
         "hint": "This sums won pipeline deals. Invoiced revenue (R$400k per book / R$4M total) comes from Easy."
       },

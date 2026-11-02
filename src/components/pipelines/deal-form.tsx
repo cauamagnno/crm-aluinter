@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { dealStatusPatch } from "@/lib/pipelines/close-deal";
 import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
 import { DEFAULT_CURRENCY } from "@/lib/currency";
@@ -42,6 +43,8 @@ interface DealFormProps {
   stages: PipelineStage[];
   defaultStageId?: string;
   onSaved: () => void;
+  /** After a successful save, the parent can open the client or deal card. */
+  onCreated?: (saved: { id: string; contact_id: string | null }) => void;
 }
 
 export function DealForm({
@@ -52,6 +55,7 @@ export function DealForm({
   stages,
   defaultStageId,
   onSaved,
+  onCreated,
 }: DealFormProps) {
   const t = useTranslations("Pipelines.form");
   const supabase = createClient();
@@ -171,6 +175,8 @@ export function DealForm({
       expected_close_date: expectedCloseDate || null,
     };
 
+    let saved: { id: string; contact_id: string | null } | null = null;
+
     if (deal) {
       const { error } = await supabase
         .from("deals")
@@ -196,20 +202,24 @@ export function DealForm({
         setSaving(false);
         return;
       }
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("deals")
-        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" });
+        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" })
+        .select("id, contact_id")
+        .single();
       if (error) {
         toast.error(t("toastFailedCreate"));
         setSaving(false);
         return;
       }
+      saved = data as { id: string; contact_id: string | null };
     }
 
     setSaving(false);
     toast.success(deal ? t("toastUpdated") : t("toastCreated"));
     onOpenChange(false);
     onSaved();
+    if (saved) onCreated?.(saved);
   }
 
   async function handleStatusChange(status: DealStatus) {
@@ -217,7 +227,7 @@ export function DealForm({
     setStatusAction(status);
     const { error } = await supabase
       .from("deals")
-      .update({ status })
+      .update(dealStatusPatch(status))
       .eq("id", deal.id);
     setStatusAction(null);
     if (error) {

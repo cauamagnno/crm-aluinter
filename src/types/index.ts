@@ -107,6 +107,8 @@ export interface Contact {
   name?: string;
   email?: string;
   company?: string;
+  /** Vendor who owns this company. profiles.id. */
+  assigned_to?: string | null;
   avatar_url?: string;
   created_at: string;
   updated_at: string;
@@ -403,6 +405,8 @@ export interface Deal {
   expected_close_date?: string;
   status?: DealStatus;
   paused?: boolean;
+  /** Set when the deal is marked won or lost. Cleared when reopened. */
+  closed_at?: string | null;
   created_at: string;
   updated_at?: string;
   contact?: Contact;

@@ -26,6 +26,8 @@ export function DealTaskForm({
   deals,
   profiles,
   onSaved,
+  lockAssignee = false,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,6 +35,9 @@ export function DealTaskForm({
   deals: Deal[];
   profiles: Profile[];
   onSaved: () => void;
+  /** When set, the assignee cannot be changed (the salesperson's own tasks). */
+  lockAssignee?: boolean;
+  onCreated?: (dealId: string) => void;
 }) {
   const t = useTranslations("Pipelines.tasks");
   const supabase = createClient();
@@ -44,6 +49,7 @@ export function DealTaskForm({
   const [assigneeId, setAssigneeId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("09:00");
+  const [kind, setKind] = useState("ligacao");
   const [markDone, setMarkDone] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -59,6 +65,7 @@ export function DealTaskForm({
     setDueTime(
       `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
     );
+    setKind("ligacao");
     setMarkDone(false);
   }, [open, deal, deals, profile?.id]);
 
@@ -83,7 +90,7 @@ export function DealTaskForm({
       description: description.trim() || null,
       assignee_id: assigneeId,
       due_at: dueAt.toISOString(),
-      kind: "tarefa",
+      kind,
       created_by: user.id,
       done_at: markDone ? new Date().toISOString() : null,
     });
@@ -95,6 +102,7 @@ export function DealTaskForm({
     toast.success(t("created"));
     onOpenChange(false);
     onSaved();
+    onCreated?.(dealId);
   }
 
   return (
@@ -148,7 +156,8 @@ export function DealTaskForm({
             <select
               value={assigneeId}
               onChange={(e) => setAssigneeId(e.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
+              disabled={lockAssignee}
+              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm disabled:opacity-70"
             >
               <option value="">—</option>
               {profiles.map((p) => (
@@ -160,7 +169,15 @@ export function DealTaskForm({
           </div>
           <div className="grid gap-1.5">
             <Label>{t("kind")} *</Label>
-            <Input value={t("kindTask")} readOnly className="bg-muted" />
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
+            >
+              <option value="ligacao">{t("kindCall")}</option>
+              <option value="whatsapp">{t("kindWhatsapp")}</option>
+              <option value="email">{t("kindEmail")}</option>
+            </select>
           </div>
           <div className="grid gap-1.5">
             <Label>{t("dueDate")} *</Label>

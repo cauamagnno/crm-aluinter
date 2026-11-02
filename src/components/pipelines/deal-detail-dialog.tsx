@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { dealStatusPatch } from "@/lib/pipelines/close-deal";
 import { formatCurrency } from "@/lib/currency";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
 import type { Deal, DealStatus, DealTask, PipelineStage, Profile } from "@/types";
@@ -139,7 +140,7 @@ export function DealDetailDialog({
     setStatusAction(status);
     const { error } = await supabase
       .from("deals")
-      .update({ status, paused: false })
+      .update({ ...dealStatusPatch(status), paused: false })
       .eq("id", current.id);
     setStatusAction(null);
     if (error) {

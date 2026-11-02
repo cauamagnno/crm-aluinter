@@ -13,6 +13,8 @@ import {
   loadResponseTime,
 } from '@/lib/dashboard/queries'
 import { loadAluinterKpis, type AluinterKpiSnapshot } from '@/lib/dashboard/aluinter-kpis'
+import { loadSalesReport, type SalesReport } from '@/lib/dashboard/sales-report'
+import { loadTaskActivity, type TaskActivity } from '@/lib/dashboard/task-activity'
 import { periodLastDay, periodToday, type DashboardPeriod } from '@/lib/dashboard/period'
 import type {
   ActivityItem,
@@ -23,6 +25,8 @@ import type {
 } from '@/lib/dashboard/types'
 
 import { GestaoPanel } from '@/components/dashboard/gestao-panel'
+import { SalesReportBar } from '@/components/dashboard/sales-report-bar'
+import { TaskActivityBar } from '@/components/dashboard/task-activity-bar'
 import { MarketingPanel } from '@/components/dashboard/marketing-panel'
 import { OperacaoPanel } from '@/components/dashboard/operacao-panel'
 import { PeriodPicker } from '@/components/dashboard/period-picker'
@@ -41,6 +45,10 @@ export default function DashboardPage() {
 
   const [kpis, setKpis] = useState<AluinterKpiSnapshot | null>(null)
   const [kpisLoading, setKpisLoading] = useState(true)
+  const [sales, setSales] = useState<SalesReport | null>(null)
+  const [salesLoading, setSalesLoading] = useState(true)
+  const [tasks, setTasks] = useState<TaskActivity | null>(null)
+  const [tasksLoading, setTasksLoading] = useState(true)
 
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
@@ -62,9 +70,21 @@ export default function DashboardPage() {
     const asOf = periodLastDay(range)
 
     setKpisLoading(true)
+    setSalesLoading(true)
+    setTasksLoading(true)
     setMetricsLoading(true)
     setSeriesLoading(true)
     setResponseTimeLoading(true)
+
+    void loadSalesReport(db, range)
+      .then((report) => setSales(report))
+      .catch((err) => console.error('[dashboard] sales report failed:', err))
+      .finally(() => setSalesLoading(false))
+
+    void loadTaskActivity(db, range)
+      .then((activity) => setTasks(activity))
+      .catch((err) => console.error('[dashboard] task activity failed:', err))
+      .finally(() => setTasksLoading(false))
 
     void loadAluinterKpis(db, range)
       .then((k) => setKpis(k))
@@ -134,7 +154,14 @@ export default function DashboardPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="gestao" className="mt-5">
+        <TabsContent value="gestao" className="mt-5 space-y-5">
+          <SalesReportBar
+            report={sales}
+            loading={salesLoading}
+            period={period}
+            currency={defaultCurrency}
+          />
+          <TaskActivityBar activity={tasks} loading={tasksLoading} period={period} />
           <GestaoPanel data={kpis} loading={kpisLoading} currency={defaultCurrency} />
         </TabsContent>
 
