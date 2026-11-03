@@ -947,9 +947,9 @@
       "weightedValue": "Valor ponderado",
       "weightedValueTooltip": "Receita esperada: valor de cada negociação aberta × probabilidade da etapa. Primeira etapa ≈ 10%, até 90%; vendida = 100%. Perdidas ficam de fora.",
       "wonThisMonth": "Vendidas no mês",
-      "wonThisMonthTooltip": "Negociações marcadas como vendidas desde o primeiro dia do mês.",
+      "wonThisMonthTooltip": "Negociações vendidas com data de fechamento neste mês (closed_at). Uma edição depois não muda o mês.",
       "lostThisMonth": "Perdidas no mês",
-      "lostThisMonthTooltip": "Negociações marcadas como perdidas desde o primeiro dia do mês.",
+      "lostThisMonthTooltip": "Negociações perdidas com data de fechamento neste mês (closed_at). Uma edição depois não muda o mês.",
       "howCalculated": "Como {label} é calculado"
     }
   },

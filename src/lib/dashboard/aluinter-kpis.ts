@@ -269,7 +269,7 @@ export async function loadAluinterKpis(
   for (const d of dealRows) {
     if (d.status !== 'won' || !d.closed_at) continue
     const at = new Date(d.closed_at)
-    const value = d.value ?? 0
+    const value = Number(d.value ?? 0) || 0
     if (at >= todayStart && at < periodEnd) wonThisMonth += value
     if (!d.contact_id) continue
     const list = wonByContact.get(d.contact_id) ?? []
