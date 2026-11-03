@@ -6,15 +6,27 @@ import { Button } from '@/components/ui/button'
 import {
   periodFromInputs,
   periodInputValues,
+  periodLast4Months,
+  periodLastMonth,
+  periodLastWeek,
   periodThisMonth,
   periodThisWeek,
+  periodThisYear,
   periodToday,
   type DashboardPeriod,
   type PeriodPreset,
 } from '@/lib/dashboard/period'
 import { toDateInputValue } from '@/lib/dashboard/date-utils'
 
-const PRESETS: PeriodPreset[] = ['today', 'week', 'month']
+const PRESETS: PeriodPreset[] = [
+  'today',
+  'week',
+  'lastWeek',
+  'month',
+  'lastMonth',
+  'last4Months',
+  'thisYear',
+]
 
 export function PeriodPicker({
   period,
@@ -42,7 +54,15 @@ export function PeriodPicker({
                   ? periodToday()
                   : preset === 'week'
                     ? periodThisWeek()
-                    : periodThisMonth(),
+                    : preset === 'lastWeek'
+                      ? periodLastWeek()
+                      : preset === 'month'
+                        ? periodThisMonth()
+                        : preset === 'lastMonth'
+                          ? periodLastMonth()
+                          : preset === 'last4Months'
+                            ? periodLast4Months()
+                            : periodThisYear(),
               )
             }
           >

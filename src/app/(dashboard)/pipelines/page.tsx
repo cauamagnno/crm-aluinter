@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal, DealTask, Profile } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
@@ -9,6 +10,9 @@ import { DealForm } from "@/components/pipelines/deal-form";
 import { DealDetailDialog } from "@/components/pipelines/deal-detail-dialog";
 import { DealTaskForm } from "@/components/pipelines/deal-task-form";
 import { DealFiltersSheet } from "@/components/pipelines/deal-filters-sheet";
+import { ContactForm } from "@/components/contacts/contact-form";
+import { ContactDetailView } from "@/components/contacts/contact-detail-view";
+import { localDayKey } from "@/lib/dashboard/date-utils";
 import {
   countActiveFilters,
   EMPTY_DEAL_FILTERS,
@@ -33,10 +37,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Briefcase,
+  Building2,
   ChevronDown,
   Clock,
   Filter,
   Handshake,
+  ListTodo,
+  UserPlus,
   Pause,
   Plus,
   Settings,
@@ -58,6 +66,8 @@ import { dealMatchesStatusFilter } from "@/lib/pipelines/status";
 type StatusFilter = "all" | "open" | "won" | "lost" | "paused" | "not_paused";
 type SortFilter = "created_desc" | "created_asc" | "value_desc";
 
+const DEALS_PAGE_SIZE = 15;
+
 function attachNextTasks(deals: Deal[], tasks: DealTask[]): Deal[] {
   const openByDeal = new Map<string, DealTask[]>();
   for (const task of tasks) {
@@ -74,18 +84,23 @@ function attachNextTasks(deals: Deal[], tasks: DealTask[]): Deal[] {
   });
 }
 
-export default function PipelinesPage() {
+function PipelinesPageInner() {
   const t = useTranslations("Pipelines.page");
   const tStatus = useTranslations("Pipelines.status");
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
-  const { accountId } = useAuth();
+  const { accountId, accountRole } = useAuth();
+  const searchParams = useSearchParams();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
   const [stages, setStages] = useState<PipelineStage[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const [slimDeals, setSlimDeals] = useState<Deal[]>([]);
+  const [richDeals, setRichDeals] = useState<Deal[]>([]);
+  const [pageLimit, setPageLimit] = useState<Record<string, number>>({});
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [hydrateEpoch, setHydrateEpoch] = useState(0);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -106,8 +121,47 @@ export default function PipelinesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortFilter, setSortFilter] = useState<SortFilter>("created_desc");
   const [filters, setFilters] = useState<DealFilterState>(EMPTY_DEAL_FILTERS);
+  const [contactFormOpen, setContactFormOpen] = useState(false);
+  const [contactIntent, setContactIntent] = useState<"contact" | "company">("contact");
+  const [contactCardId, setContactCardId] = useState<string | null>(null);
+  const [contactCardOpen, setContactCardOpen] = useState(false);
+  const linkApplied = useRef(false);
 
   const seedAttempted = useRef(false);
+
+  useEffect(() => {
+    if (linkApplied.current) return;
+    linkApplied.current = true;
+    const status = searchParams.get("status");
+    if (
+      status === "open" ||
+      status === "won" ||
+      status === "lost" ||
+      status === "paused" ||
+      status === "not_paused" ||
+      status === "all"
+    ) {
+      setStatusFilter(status);
+    }
+    const createdFrom = searchParams.get("createdFrom") ?? "";
+    const createdTo = searchParams.get("createdTo") ?? "";
+    const closedFrom = searchParams.get("closedFrom") ?? "";
+    const closedTo = searchParams.get("closedTo") ?? "";
+    if (createdFrom || createdTo || closedFrom || closedTo) {
+      setFilters((prev) => ({
+        ...prev,
+        createdFrom,
+        createdTo,
+        closedFrom,
+        closedTo,
+      }));
+    }
+  }, [searchParams]);
+
+  function openClientCard(contactId: string) {
+    setContactCardId(contactId);
+    setContactCardOpen(true);
+  }
 
   const loadPipelines = useCallback(async () => {
     const { data, error } = await supabase
@@ -133,13 +187,26 @@ export default function PipelinesPage() {
     [supabase],
   );
 
-  const loadDeals = useCallback(
+  const loadSlimDeals = useCallback(
     async (pipelineId: string) => {
       const { data } = await supabase
         .from("deals")
+        .select(
+          "id, pipeline_id, stage_id, title, value, currency, status, paused, assigned_to, created_at, updated_at, expected_close_date, closed_at, contact_id",
+        )
+        .eq("pipeline_id", pipelineId);
+      return (data ?? []) as Deal[];
+    },
+    [supabase],
+  );
+
+  const hydrateDeals = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return [] as Deal[];
+      const { data } = await supabase
+        .from("deals")
         .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
-        .eq("pipeline_id", pipelineId)
-        .order("created_at", { ascending: false });
+        .in("id", ids);
       const rows = (data ?? []) as Deal[];
       if (rows.length === 0) return rows;
       const { data: tasks } = await supabase
@@ -227,23 +294,29 @@ export default function PipelinesPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStages([]);
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDeals([]);
+      setSlimDeals([]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRichDeals([]);
       return;
     }
     let cancelled = false;
+    setCardsLoading(true);
+    setPageLimit({});
+    setSlimDeals([]);
+    setRichDeals([]);
     (async () => {
-      const [s, d] = await Promise.all([
+      const [s, slim] = await Promise.all([
         loadStages(selectedPipelineId),
-        loadDeals(selectedPipelineId),
+        loadSlimDeals(selectedPipelineId),
       ]);
       if (cancelled) return;
       setStages(s);
-      setDeals(d);
+      setSlimDeals(slim);
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedPipelineId, loadStages, loadDeals]);
+  }, [selectedPipelineId, loadStages, loadSlimDeals]);
 
   const refreshPipelines = useCallback(async () => {
     const list = await loadPipelines();
@@ -260,14 +333,18 @@ export default function PipelinesPage() {
 
   const refreshDeals = useCallback(async () => {
     if (!selectedPipelineId) return;
-    setDeals(await loadDeals(selectedPipelineId));
-  }, [loadDeals, selectedPipelineId]);
+    setCardsLoading(true);
+    setRichDeals([]);
+    setHydrateEpoch((n) => n + 1);
+    setSlimDeals(await loadSlimDeals(selectedPipelineId));
+  }, [loadSlimDeals, selectedPipelineId]);
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
-      setDeals((prev) =>
-        prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
-      );
+      const move = (prev: Deal[]) =>
+        prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d));
+      setSlimDeals(move);
+      setRichDeals(move);
       const { error } = await supabase
         .from("deals")
         .update({ stage_id: newStageId })
@@ -294,7 +371,7 @@ export default function PipelinesPage() {
     setDetailOpen(true);
   }, []);
 
-  const handleCreateTask = useCallback((deal: Deal) => {
+  const handleCreateTask = useCallback((deal: Deal | null) => {
     setTaskDeal(deal);
     setTaskFormOpen(true);
   }, []);
@@ -351,12 +428,11 @@ export default function PipelinesPage() {
   const activeFilterCount = countActiveFilters(filters);
 
   const visibleDeals = useMemo(() => {
-    let rows = [...deals];
+    let rows = [...slimDeals];
     if (ownerFilter !== "all") {
       rows = rows.filter((d) => d.assigned_to === ownerFilter);
     }
     rows = rows.filter((d) => dealMatchesStatusFilter(d, statusFilter));
-    if (filters.withoutTask) rows = rows.filter((d) => !d.next_task);
     if (filters.name.trim()) {
       const q = filters.name.trim().toLowerCase();
       rows = rows.filter(
@@ -373,17 +449,26 @@ export default function PipelinesPage() {
     if (max != null && !Number.isNaN(max)) {
       rows = rows.filter((d) => Number(d.value || 0) <= max);
     }
-    if (filters.createdFrom) {
-      rows = rows.filter((d) => d.created_at.slice(0, 10) >= filters.createdFrom);
+    if (filters.createdFrom || filters.createdTo) {
+      rows = rows.filter((d) => {
+        const key = localDayKey(d.created_at);
+        if (filters.createdFrom && key < filters.createdFrom) return false;
+        if (filters.createdTo && key > filters.createdTo) return false;
+        return true;
+      });
+    }
+    if (filters.closedFrom || filters.closedTo) {
+      rows = rows.filter((d) => {
+        if (!d.closed_at) return false;
+        const key = localDayKey(d.closed_at);
+        if (filters.closedFrom && key < filters.closedFrom) return false;
+        if (filters.closedTo && key > filters.closedTo) return false;
+        return true;
+      });
     }
     if (filters.closeFrom) {
       rows = rows.filter(
         (d) => (d.expected_close_date ?? "") >= filters.closeFrom,
-      );
-    }
-    if (filters.nextTaskFrom) {
-      rows = rows.filter(
-        (d) => (d.next_task?.due_at ?? "").slice(0, 10) >= filters.nextTaskFrom,
       );
     }
     rows.sort((a, b) => {
@@ -394,10 +479,75 @@ export default function PipelinesPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return rows;
-  }, [deals, ownerFilter, statusFilter, sortFilter, filters]);
+  }, [slimDeals, ownerFilter, statusFilter, sortFilter, filters]);
+
+  const cardWindows = useMemo(() => {
+    const map = new Map<string, { slice: Deal[]; total: number; value: number }>();
+    for (const stage of stages) {
+      const rows = visibleDeals.filter((d) => d.stage_id === stage.id);
+      const limit = pageLimit[stage.id] ?? DEALS_PAGE_SIZE;
+      map.set(stage.id, {
+        slice: rows.slice(0, limit),
+        total: rows.length,
+        value: rows.reduce((sum, d) => sum + Number(d.value || 0), 0),
+      });
+    }
+    return map;
+  }, [visibleDeals, stages, pageLimit]);
+
+  const neededIds = useMemo(
+    () => [...cardWindows.values()].flatMap((w) => w.slice.map((d) => d.id)),
+    [cardWindows],
+  );
+  const neededKey = neededIds.join(",");
+
+  useEffect(() => {
+    const missing = neededIds.filter((id) => !richDeals.some((d) => d.id === id));
+    if (missing.length === 0) {
+      setCardsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCardsLoading(true);
+    (async () => {
+      const rows = await hydrateDeals(missing);
+      if (cancelled) return;
+      setRichDeals((prev) => {
+        const byId = new Map(prev.map((d) => [d.id, d]));
+        for (const row of rows) byId.set(row.id, row);
+        return [...byId.values()];
+      });
+      setCardsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // richDeals is read to skip ids already hydrated; including it would refetch.
+    // hydrateEpoch forces a reload after a save clears the cache.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [neededKey, hydrateEpoch, hydrateDeals]);
+
+  const boardDeals = useMemo(() => {
+    const rich = new Map(richDeals.map((d) => [d.id, d]));
+    const out: Deal[] = [];
+    for (const stageWindow of cardWindows.values()) {
+      for (const slim of stageWindow.slice) {
+        const full = rich.get(slim.id);
+        if (full) out.push(full);
+      }
+    }
+    let rows = out;
+    if (filters.withoutTask) rows = rows.filter((d) => !d.next_task);
+    if (filters.nextTaskFrom) {
+      rows = rows.filter(
+        (d) => (d.next_task?.due_at ?? "").slice(0, 10) >= filters.nextTaskFrom,
+      );
+    }
+    return rows;
+  }, [cardWindows, richDeals, filters.withoutTask, filters.nextTaskFrom]);
 
   const liveEditingDeal =
-    deals.find((d) => d.id === editingDeal?.id) ?? editingDeal;
+    richDeals.find((d) => d.id === editingDeal?.id) ?? editingDeal;
 
   if (loading) {
     return (
@@ -480,16 +630,49 @@ export default function PipelinesPage() {
           </DropdownMenu>
         </div>
 
-        <GatedButton
-          canAct={canCreateDeals}
-          gateReason="create deals"
-          disabled={!selectedPipelineId || stages.length === 0}
-          onClick={() => handleAddDeal()}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="mr-1 h-4 w-4" />
-          {t("addDeal")}
-        </GatedButton>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            disabled={!canCreateDeals}
+            className="inline-flex items-center rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            {t("addDeal")}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 border-border bg-popover">
+            <DropdownMenuItem
+              disabled={!selectedPipelineId || stages.length === 0}
+              onClick={() => handleAddDeal()}
+            >
+              <Briefcase className="mr-2 h-4 w-4" />
+              {t("createDeal")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                setContactIntent("contact");
+                setContactFormOpen(true);
+              }}
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              {t("createContact")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                setContactIntent("company");
+                setContactFormOpen(true);
+              }}
+            >
+              <Building2 className="mr-2 h-4 w-4" />
+              {t("createCompany")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!selectedPipelineId}
+              onClick={() => handleCreateTask(null)}
+            >
+              <ListTodo className="mr-2 h-4 w-4" />
+              {t("createTask")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {pipelines.length > 0 && (
@@ -584,7 +767,15 @@ export default function PipelinesPage() {
           <PipelineAnalytics stages={stages} deals={visibleDeals} />
           <PipelineBoard
             stages={stages}
-            deals={visibleDeals}
+            deals={boardDeals}
+            stageStats={cardWindows}
+            cardsLoading={cardsLoading}
+            onLoadMore={(stageId) =>
+              setPageLimit((prev) => ({
+                ...prev,
+                [stageId]: (prev[stageId] ?? DEALS_PAGE_SIZE) + DEALS_PAGE_SIZE,
+              }))
+            }
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleOpenDeal}
@@ -655,6 +846,9 @@ export default function PipelinesPage() {
         stages={stages}
         defaultStageId={defaultStageId}
         onSaved={refreshDeals}
+        onCreated={(saved) => {
+          if (saved.contact_id) openClientCard(saved.contact_id);
+        }}
       />
 
       <DealDetailDialog
@@ -674,9 +868,33 @@ export default function PipelinesPage() {
         open={taskFormOpen}
         onOpenChange={setTaskFormOpen}
         deal={taskDeal}
-        deals={deals}
+        deals={visibleDeals}
         profiles={profiles}
+        lockAssignee={accountRole === "agent"}
         onSaved={refreshDeals}
+        onCreated={(dealId) => {
+          const row =
+            visibleDeals.find((d) => d.id === dealId) ??
+            (taskDeal?.id === dealId ? taskDeal : null);
+          if (row?.contact_id) openClientCard(row.contact_id);
+          else if (row) handleOpenDeal(row);
+        }}
+      />
+
+      <ContactForm
+        open={contactFormOpen}
+        onOpenChange={setContactFormOpen}
+        asSheet
+        intent={contactIntent}
+        onSaved={() => undefined}
+        onCreated={(contactId) => openClientCard(contactId)}
+      />
+
+      <ContactDetailView
+        open={contactCardOpen}
+        onOpenChange={setContactCardOpen}
+        contactId={contactCardId}
+        onUpdated={() => undefined}
       />
 
       <DealFiltersSheet
@@ -687,6 +905,14 @@ export default function PipelinesPage() {
         onClear={() => setFilters(EMPTY_DEAL_FILTERS)}
       />
     </div>
+  );
+}
+
+export default function PipelinesPage() {
+  return (
+    <Suspense fallback={null}>
+      <PipelinesPageInner />
+    </Suspense>
   );
 }
 

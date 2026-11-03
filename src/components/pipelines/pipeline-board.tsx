@@ -22,9 +22,18 @@ import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
 
+interface StageWindow {
+  slice: Deal[];
+  total: number;
+  value: number;
+}
+
 interface PipelineBoardProps {
   stages: PipelineStage[];
   deals: Deal[];
+  stageStats: Map<string, StageWindow>;
+  cardsLoading: boolean;
+  onLoadMore: (stageId: string) => void;
   onDealMoved: (dealId: string, newStageId: string) => void;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
@@ -34,6 +43,9 @@ interface PipelineBoardProps {
 export function PipelineBoard({
   stages,
   deals,
+  stageStats,
+  cardsLoading,
+  onLoadMore,
   onDealMoved,
   onAddDeal,
   onEditDeal,
@@ -99,20 +111,25 @@ export function PipelineBoard({
       <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none">
         {sortedStages.map((stage) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
-          const totalValue = stageDeals.reduce(
-            (s, d) => s + Number(d.value || 0),
-            0,
-          );
+          const stats = stageStats.get(stage.id);
+          const total = stats?.total ?? stageDeals.length;
+          const totalValue = stats?.value ?? 0;
+          const limit = stats?.slice.length ?? stageDeals.length;
           return (
             <StageColumn
               key={stage.id}
               stage={stage}
               deals={stageDeals}
+              total={total}
               totalValue={totalValue}
+              hasMore={total > limit}
+              loading={cardsLoading && stageDeals.length === 0 && total > 0}
+              loadingMore={cardsLoading && total > limit}
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
               onCreateTask={onCreateTask}
+              onLoadMore={() => onLoadMore(stage.id)}
             />
           );
         })}
@@ -175,19 +192,29 @@ export function PipelineBoard({
 function StageColumn({
   stage,
   deals,
+  total,
   totalValue,
+  hasMore,
+  loading,
+  loadingMore,
   currency,
   onAddDeal,
   onEditDeal,
   onCreateTask,
+  onLoadMore,
 }: {
   stage: PipelineStage;
   deals: Deal[];
+  total: number;
   totalValue: number;
+  hasMore: boolean;
+  loading: boolean;
+  loadingMore: boolean;
   currency: string;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
   onCreateTask: (deal: Deal) => void;
+  onLoadMore: () => void;
 }) {
   const t = useTranslations("Pipelines.board");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -199,7 +226,7 @@ function StageColumn({
           <h3 className="truncate text-xs font-semibold tracking-wide text-foreground uppercase">
             {stage.name}{" "}
             <span className="font-normal text-muted-foreground">
-              ({deals.length})
+              ({hasMore ? t("columnCountMore", { shown: deals.length, total }) : total})
             </span>
           </h3>
           <p className="text-xs text-muted-foreground">
@@ -225,7 +252,13 @@ function StageColumn({
             : ""
         }`}
       >
-        {deals.length === 0 ? (
+        {loading ? (
+          <div className="flex flex-col gap-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />
+            ))}
+          </div>
+        ) : deals.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed border-border py-10 text-xs text-muted-foreground">
             {t("dropDealHere")}
           </div>
@@ -239,6 +272,17 @@ function StageColumn({
               onCreateTask={onCreateTask}
             />
           ))
+        )}
+        {hasMore && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-1 w-full text-muted-foreground"
+            disabled={loadingMore}
+            onClick={onLoadMore}
+          >
+            {t("loadMore")}
+          </Button>
         )}
       </div>
     </div>

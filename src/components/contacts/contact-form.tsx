@@ -20,6 +20,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import type { Profile } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,6 +43,11 @@ interface ContactFormProps {
   /** Open an existing contact's detail view — used by the duplicate
    *  notice to jump to the contact that already owns this number. */
   onViewExisting?: (contactId: string) => void;
+  /** Right-hand sheet instead of a centered dialog. */
+  asSheet?: boolean;
+  /** Company requires the company name and uses it as the client name when empty. */
+  intent?: "contact" | "company";
+  onCreated?: (contactId: string) => void;
 }
 
 export function ContactForm({
@@ -45,16 +57,22 @@ export function ContactForm({
   contactTags = [],
   onSaved,
   onViewExisting,
+  asSheet = false,
+  intent = 'contact',
+  onCreated,
 }: ContactFormProps) {
   const t = useTranslations('Contacts.form');
   const supabase = createClient();
-  const { accountId } = useAuth();
+  const { accountId, profile, accountRole } = useAuth();
+  const canPickOwner = accountRole !== 'viewer';
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
+  const [ownerOptions, setOwnerOptions] = useState<Pick<Profile, 'id' | 'full_name' | 'email'>[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Duplicate-phone detection for NEW contacts. `exact` (same digits)
@@ -76,11 +94,19 @@ export function ContactForm({
       setPhone(contact?.phone ?? '');
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
+      setAssignedTo(contact?.assigned_to ?? profile?.id ?? '');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
       setDupMatch(null);
       fetchTags();
+      supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .order('full_name')
+        .then(({ data }) => {
+          if (data) setOwnerOptions(data as Pick<Profile, 'id' | 'full_name' | 'email'>[]);
+        });
     }
-  }, [open, contact]);
+  }, [open, contact, profile?.id, supabase]);
 
   // Look up an existing contact with this number (new contacts only).
   // Runs on blur so we don't query on every keystroke.
@@ -136,6 +162,10 @@ export function ContactForm({
       toast.error(t('toastConflict'));
       return;
     }
+    if (intent === 'company' && !company.trim()) {
+      toast.error(t('companyRequired'));
+      return;
+    }
 
     setSaving(true);
 
@@ -148,15 +178,17 @@ export function ContactForm({
       if (!accountId) throw new Error('Your profile is not linked to an account.');
 
       let contactId = contact?.id;
+      const savedName = name.trim() || (intent === 'company' ? company.trim() : '');
 
       if (isEdit && contactId) {
         const { error } = await supabase
           .from('contacts')
           .update({
-            name: name.trim() || null,
+            name: savedName || null,
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            assigned_to: assignedTo || null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', contactId);
@@ -167,10 +199,11 @@ export function ContactForm({
           .insert({
             user_id: user.id,
             account_id: accountId,
-            name: name.trim() || null,
+            name: savedName || null,
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            assigned_to: assignedTo || profile?.id || null,
           })
           .select('id')
           .single();
@@ -196,6 +229,7 @@ export function ContactForm({
       toast.success(isEdit ? t('toastSuccessEdit') : t('toastSuccessAdd'));
       onOpenChange(false);
       onSaved();
+      if (contactId) onCreated?.(contactId);
     } catch (err: unknown) {
       // The unique index (migration 022) rejects a duplicate phone that
       // slipped past the on-blur check (race, or a format that
@@ -220,12 +254,26 @@ export function ContactForm({
     }
   }
 
+  const title =
+    intent === 'company' && !isEdit ? t('companyTitle') : isEdit ? t('editTitle') : t('addTitle');
+  const Shell = asSheet ? Sheet : Dialog;
+  const ShellContent = asSheet ? SheetContent : DialogContent;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-popover border-border text-popover-foreground sm:max-w-md">
+    <Shell open={open} onOpenChange={onOpenChange}>
+      <ShellContent
+        {...(asSheet
+          ? { side: 'right' as const, className: 'w-full overflow-y-auto border-border bg-popover p-0 sm:max-w-md' }
+          : { className: 'bg-popover border-border text-popover-foreground sm:max-w-md' })}
+      >
+        {asSheet ? (
+          <SheetHeader className="border-b border-border px-5 py-4">
+            <SheetTitle>{title}</SheetTitle>
+          </SheetHeader>
+        ) : (
         <DialogHeader>
           <DialogTitle className="text-popover-foreground">
-            {isEdit ? t('editTitle') : t('addTitle')}
+            {title}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             {isEdit
@@ -233,8 +281,9 @@ export function ContactForm({
               : t('addDesc')}
           </DialogDescription>
         </DialogHeader>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className={asSheet ? 'space-y-4 px-5 py-4' : 'space-y-4'}>
           <div className="space-y-2">
             <Label htmlFor="cf-name" className="text-muted-foreground">
               {t('nameLabel')}
@@ -313,6 +362,7 @@ export function ContactForm({
           <div className="space-y-2">
             <Label htmlFor="cf-company" className="text-muted-foreground">
               {t('companyLabel')}
+              {intent === 'company' ? <span className="text-red-400"> *</span> : null}
             </Label>
             <Input
               id="cf-company"
@@ -321,6 +371,29 @@ export function ContactForm({
               placeholder={t('companyPlaceholder')}
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">{t('attributions')}</p>
+            <Label className="text-muted-foreground">{t('ownerLabel')}</Label>
+            {canPickOwner ? (
+              <select
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
+              >
+                <option value="">{t('ownerNone')}</option>
+                {ownerOptions.map((owner) => (
+                  <option key={owner.id} value={owner.id}>
+                    {owner.full_name || owner.email}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-foreground">
+                {ownerOptions.find((owner) => owner.id === assignedTo)?.full_name || t('ownerNone')}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -381,7 +454,7 @@ export function ContactForm({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </ShellContent>
+    </Shell>
   );
 }

@@ -25,8 +25,7 @@ import {
   Clock,
   ArrowLeft,
   RefreshCw,
-  PanelRightOpen,
-  PanelRightClose,
+  User,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -148,6 +147,20 @@ const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string 
  */
 const DOODLE_BG_CLASSES =
   "bg-background bg-[url('/inbox-doodle.svg')] bg-repeat";
+
+function agentLogin(
+  message: Message,
+  profiles: Profile[],
+  currentUser?: { id?: string; email?: string | null } | null,
+): string | null {
+  if (message.sender_type === "customer") return null;
+  if (message.sender_type === "bot" || message.ai_generated) return null;
+  if (!message.sender_id) return null;
+  const profile = profiles.find((p) => p.user_id === message.sender_id);
+  if (profile?.email) return profile.email;
+  if (message.sender_id === currentUser?.id) return currentUser.email ?? null;
+  return null;
+}
 
 export function MessageThread({
   conversation,
@@ -474,6 +487,7 @@ export function MessageThread({
         id: tempId,
         conversation_id: conversation.id,
         sender_type: "agent",
+        sender_id: user?.id,
         content_type: "text",
         content_text: text,
         status: "sending",
@@ -517,7 +531,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage]
+    [conversation, onNewMessage, onUpdateMessage, user?.id]
   );
 
   const handleSendMedia = useCallback(
@@ -537,6 +551,7 @@ export function MessageThread({
         id: tempId,
         conversation_id: conversation.id,
         sender_type: "agent",
+        sender_id: user?.id,
         content_type: payload.kind,
         content_text: contentText,
         media_url: payload.mediaUrl,
@@ -583,7 +598,7 @@ export function MessageThread({
         void deleteAccountMedia(CHAT_MEDIA_BUCKET, payload.path).catch(() => {});
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, user?.id],
   );
 
   const handleSendInteractive = useCallback(
@@ -597,6 +612,7 @@ export function MessageThread({
         id: tempId,
         conversation_id: conversation.id,
         sender_type: "agent",
+        sender_id: user?.id,
         content_type: "interactive",
         content_text: payload.body,
         interactive_payload: payload,
@@ -636,7 +652,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, user?.id],
   );
 
   const handleStatusChange = useCallback(
@@ -676,6 +692,7 @@ export function MessageThread({
         id: tempId,
         conversation_id: conversation.id,
         sender_type: "agent",
+        sender_id: user?.id,
         content_type: "template",
         content_text: renderedBody,
         template_name: template.name,
@@ -725,7 +742,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, user?.id],
   );
 
   // Build a quick id → Message map so reply quotes can be rendered without
@@ -786,7 +803,7 @@ export function MessageThread({
         return;
       }
       if (messageId.startsWith("temp-")) {
-        toast.error("Wait for the message to finish sending");
+        toast.error(t("waitForSend"));
         return;
       }
 
@@ -831,12 +848,12 @@ export function MessageThread({
           throw new Error(payload?.error || `HTTP ${res.status}`);
         }
       } catch (err) {
-        const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Reaction failed: ${reason}`);
+        const reason = err instanceof Error ? err.message : t("networkError");
+        toast.error(t("reactionFailed", { reason }));
         setReactions(snapshot);
       }
     },
-    [conversation, user?.id],
+    [conversation, user?.id, t],
   );
 
   const handleAssignChange = useCallback(
@@ -851,19 +868,21 @@ export function MessageThread({
 
       if (error) {
         console.error("Failed to update assignment:", error);
-        toast.error("Failed to update assignment");
+        toast.error(t("assignFailed"));
         return;
       }
 
       onAssignChange(conversation.id, agentId);
     },
-    [conversation, onAssignChange],
+    [conversation, onAssignChange, t],
   );
 
   // Empty state — same WhatsApp-style doodle background as the active
   // thread below, so swapping between empty/selected doesn't change the
   // pattern under the user's eye.
-  if (!conversation || !contact) {
+  // A conversation with no joined contact still has messages. Hiding the
+  // thread here made a click look like nothing opened.
+  if (!conversation) {
     return (
       <div className={cn("flex flex-1 flex-col items-center justify-center", DOODLE_BG_CLASSES)}>
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -879,7 +898,7 @@ export function MessageThread({
     );
   }
 
-  const displayName = contact.name || contact.phone;
+  const displayName = contact?.name || contact?.phone || t("unknown");
   const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
@@ -921,7 +940,7 @@ export function MessageThread({
           </div>
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
-            <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
+            <p className="truncate text-xs text-muted-foreground">{contact?.phone}</p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}
@@ -938,33 +957,6 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Contact-panel toggle — desktop only. The contact sidebar
-              eats a chunk of horizontal width that crowds the thread on
-              smaller laptops; this lets agents reclaim it when they just
-              want to read and reply. Hidden on mobile, where the sidebar
-              never renders as a permanent panel anyway. Issue #258. */}
-          {onToggleContactPanel && (
-            <button
-              type="button"
-              onClick={onToggleContactPanel}
-              aria-label={
-                contactPanelOpen ? t("hideContactPanel") : t("showContactPanel")
-              }
-              title={contactPanelOpen ? t("hideContact") : t("showContact")}
-              aria-pressed={contactPanelOpen}
-              className={cn(
-                "hidden h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground lg:inline-flex",
-                contactPanelOpen ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              {contactPanelOpen ? (
-                <PanelRightClose className="h-4 w-4" />
-              ) : (
-                <PanelRightOpen className="h-4 w-4" />
-              )}
-            </button>
-          )}
-
           {/* Manual refresh — forces a refetch of the messages + the
               conversation list (the parent bumps its resyncToken). Useful
               when realtime missed an event or the agent just wants to be
@@ -1012,11 +1004,12 @@ export function MessageThread({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Assign dropdown */}
+          {/* Assign stays in the header only below lg, where the contact
+              panel is not rendered. On desktop it lives in ContactSidebar. */}
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted",
+                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted lg:hidden",
                 assignedAgentId ? "text-primary" : "text-muted-foreground"
               )}
             >
@@ -1076,6 +1069,27 @@ export function MessageThread({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Contact-panel toggle — desktop only, after the assign control.
+              Hidden on mobile, where the sidebar never renders as a
+              permanent panel. */}
+          {onToggleContactPanel && (
+            <button
+              type="button"
+              onClick={onToggleContactPanel}
+              aria-label={
+                contactPanelOpen ? t("hideContactPanel") : t("showContactPanel")
+              }
+              title={contactPanelOpen ? t("hideContact") : t("showContact")}
+              aria-pressed={contactPanelOpen}
+              className={cn(
+                "hidden h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground lg:inline-flex",
+                contactPanelOpen ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <User className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -1108,11 +1122,12 @@ export function MessageThread({
                     const parent = msg.reply_to_message_id
                       ? messagesById.get(msg.reply_to_message_id)
                       : null;
+                    const senderLabel = agentLogin(msg, profiles, user);
                     const reply = parent
                       ? {
                           authorLabel:
                             parent.sender_type === "agent" || parent.sender_type === "bot"
-                              ? t("me") 
+                              ? agentLogin(parent, profiles, user) || t("me")
                               : contact?.name || contact?.phone || "Unknown",
                           preview: buildReplyPreview(parent, tQuote),
                         }
@@ -1143,6 +1158,7 @@ export function MessageThread({
                           reply={reply}
                           reactions={msgReactions}
                           currentUserId={user?.id}
+                          senderLabel={senderLabel}
                           onToggleReaction={handlePillToggle}
                           onOpenMedia={handleMediaChange}
                         />

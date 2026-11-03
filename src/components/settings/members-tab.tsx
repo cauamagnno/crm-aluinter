@@ -87,7 +87,7 @@ interface Member {
 
 interface Invitation {
   id: string;
-  role: 'admin' | 'agent' | 'viewer';
+  role: 'admin' | 'gestor' | 'agent' | 'viewer';
   label: string | null;
   created_at: string;
   expires_at: string;
@@ -96,6 +96,7 @@ interface Invitation {
 // These roles are translated via `useTranslations("Settings.roles")` where they are used.
 const EDITABLE_ROLES: { value: AccountRole }[] = [
   { value: 'admin' },
+  { value: 'gestor' },
   { value: 'agent' },
   { value: 'viewer' },
 ];

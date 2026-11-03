@@ -38,6 +38,8 @@ interface MessageBubbleProps {
    * stays inline and non-clickable.
    */
   onOpenMedia?: (messageId: string) => void;
+  /** E-mail of the logged-in agent who sent this message. */
+  senderLabel?: string | null;
 }
 
 function StatusIcon({ status }: { status: Message["status"] }) {
@@ -222,6 +224,7 @@ export function MessageBubble({
   currentUserId,
   onToggleReaction,
   onOpenMedia,
+  senderLabel,
 }: MessageBubbleProps) {
   const t = useTranslations("Inbox.bubble");
 
@@ -237,6 +240,11 @@ export function MessageBubble({
         isAgent ? "items-end" : "items-start",
       )}
     >
+      {isAgent && senderLabel ? (
+        <span className="mb-1 max-w-full truncate px-1 text-[10px] text-muted-foreground">
+          {senderLabel}
+        </span>
+      ) : null}
       <div
         className={cn(
           "relative rounded-2xl px-3 py-2",

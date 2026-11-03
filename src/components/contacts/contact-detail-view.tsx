@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { addContactTag, deleteContactTag } from '@/lib/contacts/tag-api';
 import { useAuth } from '@/hooks/use-auth';
+import { useCan } from '@/hooks/use-can';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal, MessageTemplate } from '@/types';
@@ -56,6 +57,8 @@ export function ContactDetailView({
   onUpdated,
 }: ContactDetailViewProps) {
   const t = useTranslations('Contacts.detailView');
+  const canDelete = useCan('delete-records');
+  const canEdit = useCan('send-messages');
   const supabase = createClient();
   const { accountId, defaultCurrency } = useAuth();
 
@@ -74,6 +77,8 @@ export function ContactDetailView({
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
+  const [editAssignedTo, setEditAssignedTo] = useState('');
+  const [owners, setOwners] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Tags tab
@@ -113,9 +118,21 @@ export function ContactDetailView({
       setEditPhone(data.phone);
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
+      setEditAssignedTo(data.assigned_to ?? '');
     }
     setLoading(false);
   }, [contactId, supabase]);
+
+  useEffect(() => {
+    if (!open) return;
+    supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .order('full_name')
+      .then(({ data }) => {
+        if (data) setOwners(data);
+      });
+  }, [open, supabase]);
 
   const fetchTags = useCallback(async () => {
     if (!contactId) return;
@@ -141,7 +158,34 @@ export function ContactDetailView({
       .eq('contact_id', contactId)
       .order('created_at', { ascending: false });
 
-    if (data) setNotes(data);
+    if (data) {
+      const authorIds = [
+        ...new Set(
+          (data as ContactNote[])
+            .map((note) => note.user_id)
+            .filter(Boolean),
+        ),
+      ];
+      const emails = new Map<string, string>();
+      if (authorIds.length > 0) {
+        const { data: people } = await supabase
+          .from('profiles')
+          .select('user_id, email')
+          .in('user_id', authorIds);
+        for (const person of (people ?? []) as Array<{
+          user_id: string;
+          email: string | null;
+        }>) {
+          if (person.email) emails.set(person.user_id, person.email);
+        }
+      }
+      setNotes(
+        (data as ContactNote[]).map((note) => ({
+          ...note,
+          author_email: emails.get(note.user_id) ?? null,
+        })),
+      );
+    }
     setLoadingNotes(false);
   }, [contactId, supabase]);
 
@@ -211,6 +255,7 @@ export function ContactDetailView({
         phone: editPhone.trim(),
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
+        assigned_to: editAssignedTo || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId);
@@ -521,6 +566,28 @@ export function ContactDetailView({
                       className="bg-muted border-border text-foreground h-8 text-sm"
                     />
                   </div>
+                  <div className="space-y-1.5 border-t border-border pt-3">
+                    <p className="text-xs font-medium text-foreground">{t('attributions')}</p>
+                    <Label className="text-muted-foreground text-xs">{t('owner')}</Label>
+                    {canEdit ? (
+                      <select
+                        value={editAssignedTo}
+                        onChange={(e) => setEditAssignedTo(e.target.value)}
+                        className="h-8 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
+                      >
+                        <option value="">{t('ownerNone')}</option>
+                        {owners.map((owner) => (
+                          <option key={owner.id} value={owner.id}>
+                            {owner.full_name || owner.email}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-sm text-foreground">
+                        {owners.find((owner) => owner.id === editAssignedTo)?.full_name || t('ownerNone')}
+                      </p>
+                    )}
+                  </div>
                   <Button
                     onClick={saveDetails}
                     disabled={savingDetails}
@@ -619,17 +686,20 @@ export function ContactDetailView({
                           <p className="text-sm text-muted-foreground whitespace-pre-wrap flex-1">
                             {note.note_text}
                           </p>
-                          <button
-                            onClick={() => deleteNote(note.id)}
-                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all cursor-pointer shrink-0"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => deleteNote(note.id)}
+                              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all cursor-pointer shrink-0"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1.5">
-                          {new Date(note.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
+                          {note.author_email ? `${note.author_email} · ` : ''}
+                          {new Date(note.created_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
                             year: 'numeric',
                             hour: '2-digit',
                             minute: '2-digit',

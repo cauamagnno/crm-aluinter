@@ -3,7 +3,9 @@ import {
   ACCOUNT_ROLES,
   type AccountRole,
   canDeleteAccount,
+  canDeleteRecords,
   canEditSettings,
+  canExportRecords,
   canManageMembers,
   canSendMessages,
   canTransferOwnership,
@@ -14,9 +16,10 @@ import {
 } from "./roles";
 
 describe("roleRank", () => {
-  it("orders owner > admin > agent > viewer", () => {
+  it("orders owner > admin > gestor > agent > viewer", () => {
     expect(roleRank("owner")).toBeGreaterThan(roleRank("admin"));
-    expect(roleRank("admin")).toBeGreaterThan(roleRank("agent"));
+    expect(roleRank("admin")).toBeGreaterThan(roleRank("gestor"));
+    expect(roleRank("gestor")).toBeGreaterThan(roleRank("agent"));
     expect(roleRank("agent")).toBeGreaterThan(roleRank("viewer"));
   });
 
@@ -24,8 +27,9 @@ describe("roleRank", () => {
     // Keep these in lockstep with `is_account_member`'s CASE expression
     // in supabase/migrations/017_account_sharing.sql — any change here
     // means the SQL helper needs the same change.
-    expect(roleRank("owner")).toBe(4);
-    expect(roleRank("admin")).toBe(3);
+    expect(roleRank("owner")).toBe(5);
+    expect(roleRank("admin")).toBe(4);
+    expect(roleRank("gestor")).toBe(3);
     expect(roleRank("agent")).toBe(2);
     expect(roleRank("viewer")).toBe(1);
   });
@@ -112,6 +116,22 @@ describe("capability predicates", () => {
     expect(canViewOnly("admin")).toBe(false);
     expect(canViewOnly("agent")).toBe(false);
     expect(canViewOnly("viewer")).toBe(true);
+  });
+
+  it("canDeleteRecords: admin+ only", () => {
+    expect(canDeleteRecords("owner")).toBe(true);
+    expect(canDeleteRecords("admin")).toBe(true);
+    expect(canDeleteRecords("gestor")).toBe(false);
+    expect(canDeleteRecords("agent")).toBe(false);
+    expect(canDeleteRecords("viewer")).toBe(false);
+  });
+
+  it("canExportRecords: admin+ only", () => {
+    expect(canExportRecords("owner")).toBe(true);
+    expect(canExportRecords("admin")).toBe(true);
+    expect(canExportRecords("gestor")).toBe(false);
+    expect(canExportRecords("agent")).toBe(false);
+    expect(canExportRecords("viewer")).toBe(false);
   });
 
   it("canDeleteAccount: owner only", () => {

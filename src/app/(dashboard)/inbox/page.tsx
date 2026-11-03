@@ -501,6 +501,35 @@ function InboxPageInner() {
     router.replace("/inbox", { scroll: false });
   }, [router]);
 
+  const handleContactUpdated = useCallback((next: Contact) => {
+    setActiveContact(next);
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.contact?.id === next.id ? { ...c, contact: next } : c,
+      ),
+    );
+    setActiveConversation((prev) =>
+      prev?.contact?.id === next.id ? { ...prev, contact: next } : prev,
+    );
+  }, []);
+
+  const handleContactDeleted = useCallback(
+    (contactId: string) => {
+      setConversations((prev) =>
+        prev.filter(
+          (c) => c.contact_id !== contactId && c.contact?.id !== contactId,
+        ),
+      );
+      if (
+        activeContact?.id === contactId ||
+        activeConversation?.contact_id === contactId
+      ) {
+        handleCloseConversation();
+      }
+    },
+    [activeContact?.id, activeConversation?.contact_id, handleCloseConversation],
+  );
+
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
     setMessages(loaded);
@@ -631,8 +660,15 @@ function InboxPageInner() {
             On mobile it's always hidden (the `lg:block` below), so the
             toggle — which is itself desktop-only — never affects it. */}
         {contactPanelOpen && (
-          <div className="hidden lg:block">
-            <ContactSidebar contact={activeContact} />
+          <div className="hidden h-full min-h-0 w-80 shrink-0 lg:block">
+            <ContactSidebar
+              contact={activeContact}
+              conversation={activeConversation}
+              onAssignChange={handleAssignChange}
+              onClose={handleToggleContactPanel}
+              onContactUpdated={handleContactUpdated}
+              onContactDeleted={handleContactDeleted}
+            />
           </div>
         )}
       </div>

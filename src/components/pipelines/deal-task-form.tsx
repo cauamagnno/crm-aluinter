@@ -7,7 +7,6 @@ import { Loader2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { TASK_KINDS, taskKindMessageKey, type TaskKind } from "@/lib/pipelines/task-kinds";
 import type { Deal, Profile } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +26,8 @@ export function DealTaskForm({
   deals,
   profiles,
   onSaved,
+  lockAssignee = false,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,6 +35,9 @@ export function DealTaskForm({
   deals: Deal[];
   profiles: Profile[];
   onSaved: () => void;
+  /** When set, the assignee cannot be changed (the salesperson's own tasks). */
+  lockAssignee?: boolean;
+  onCreated?: (dealId: string) => void;
 }) {
   const t = useTranslations("Pipelines.tasks");
   const supabase = createClient();
@@ -43,7 +47,7 @@ export function DealTaskForm({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
-  const [kind, setKind] = useState<TaskKind>("ligacao");
+  const [kind, setKind] = useState("ligacao");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("09:00");
   const [markDone, setMarkDone] = useState(false);
@@ -66,8 +70,10 @@ export function DealTaskForm({
   }, [open, deal, deals, profile?.id]);
 
   const selectedDeal = deals.find((d) => d.id === dealId) ?? deal;
+  const contactSource =
+    selectedDeal?.contact ? selectedDeal : dealId === deal?.id ? deal : selectedDeal;
   const company =
-    selectedDeal?.contact?.name || selectedDeal?.contact?.phone || "—";
+    contactSource?.contact?.name || contactSource?.contact?.phone || "—";
 
   async function handleSave() {
     if (!title.trim() || !assigneeId || !dueDate || !dealId) {
@@ -96,6 +102,7 @@ export function DealTaskForm({
     toast.success(t("created"));
     onOpenChange(false);
     onSaved();
+    onCreated?.(dealId);
   }
 
   return (
@@ -149,7 +156,8 @@ export function DealTaskForm({
             <select
               value={assigneeId}
               onChange={(e) => setAssigneeId(e.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
+              disabled={lockAssignee}
+              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm disabled:opacity-70"
             >
               <option value="">—</option>
               {profiles.map((p) => (
@@ -163,14 +171,12 @@ export function DealTaskForm({
             <Label>{t("kind")} *</Label>
             <select
               value={kind}
-              onChange={(e) => setKind(e.target.value as TaskKind)}
+              onChange={(e) => setKind(e.target.value)}
               className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
             >
-              {TASK_KINDS.map((item) => (
-                <option key={item} value={item}>
-                  {t(taskKindMessageKey(item))}
-                </option>
-              ))}
+              <option value="ligacao">{t("kindCall")}</option>
+              <option value="whatsapp">{t("kindWhatsapp")}</option>
+              <option value="email">{t("kindEmail")}</option>
             </select>
           </div>
           <div className="grid gap-1.5">

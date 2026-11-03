@@ -12,9 +12,9 @@ import {
   Bell,
   Bot,
   Crown,
+  CheckSquare,
   GitBranch,
   LayoutDashboard,
-  ListChecks,
   LogOut,
   MessageSquare,
   Radio,
@@ -51,6 +51,12 @@ const ROLE_CHIP: Record<
     // Primary-tinted: significant but not as scarce as owner.
     className:
       "border-primary/40 bg-primary/10 text-primary",
+  },
+  gestor: {
+    icon: Users,
+    labelKey: "roleGestor",
+    className:
+      "border-border bg-muted text-foreground",
   },
   agent: {
     icon: UserCog,
@@ -97,7 +103,7 @@ const navItems: NavItem[] = [
   { href: "/notifications", labelKey: "notifications", icon: Bell },
   { href: "/contacts", labelKey: "contacts", icon: Users },
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
-  { href: "/tasks", labelKey: "tasks", icon: ListChecks },
+  { href: "/tarefas", labelKey: "tasks", icon: CheckSquare },
   { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
   { href: "/automations", labelKey: "automations", icon: Zap },
   { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },

@@ -119,23 +119,29 @@ const fkCache = new Map<string, FkRow[]>();
 async function loadFks(client: PoolClient, table: string): Promise<FkRow[]> {
   const cached = fkCache.get(table);
   if (cached) return cached;
+  // pg_catalog, not information_schema. constraint_column_usage is empty
+  // for the authenticated role (it only lists columns the current user
+  // owns), so the old join returned no FKs and every embed — contact on
+  // a conversation, contact on a deal — was dropped.
   const { rows } = await client.query<FkRow>(
     `SELECT
-       tc.constraint_name,
-       tc.table_name AS source_table,
-       kcu.column_name AS source_column,
-       ccu.table_name AS target_table,
-       ccu.column_name AS target_column
-     FROM information_schema.table_constraints tc
-     JOIN information_schema.key_column_usage kcu
-       ON tc.constraint_name = kcu.constraint_name
-      AND tc.table_schema = kcu.table_schema
-     JOIN information_schema.constraint_column_usage ccu
-       ON ccu.constraint_name = tc.constraint_name
-      AND ccu.table_schema = tc.table_schema
-     WHERE tc.constraint_type = 'FOREIGN KEY'
-       AND tc.table_schema = 'public'
-       AND (tc.table_name = $1 OR ccu.table_name = $1)`,
+       c.conname AS constraint_name,
+       src.relname AS source_table,
+       sa.attname AS source_column,
+       tgt.relname AS target_table,
+       ta.attname AS target_column
+     FROM pg_constraint c
+     JOIN pg_class src ON src.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = src.relnamespace
+     JOIN pg_class tgt ON tgt.oid = c.confrelid
+     JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS sk(attnum, ord) ON true
+     JOIN pg_attribute sa ON sa.attrelid = c.conrelid AND sa.attnum = sk.attnum
+     JOIN LATERAL unnest(c.confkey) WITH ORDINALITY AS tk(attnum, ord)
+       ON tk.ord = sk.ord
+     JOIN pg_attribute ta ON ta.attrelid = c.confrelid AND ta.attnum = tk.attnum
+     WHERE c.contype = 'f'
+       AND n.nspname = 'public'
+       AND (src.relname = $1 OR tgt.relname = $1)`,
     [table],
   );
   fkCache.set(table, rows);

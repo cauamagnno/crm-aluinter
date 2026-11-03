@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { dealStatusPatch } from "@/lib/pipelines/close-deal";
 import { useAuth } from "@/hooks/use-auth";
+import { useCan } from "@/hooks/use-can";
 import { DEFAULT_CURRENCY } from "@/lib/currency";
 import type {
   Contact,
@@ -45,6 +47,8 @@ interface DealFormProps {
   stages: PipelineStage[];
   defaultStageId?: string;
   onSaved: () => void;
+  /** After a successful save, the parent can open the client or deal card. */
+  onCreated?: (saved: { id: string; contact_id: string | null }) => void;
 }
 
 export function DealForm({
@@ -55,10 +59,12 @@ export function DealForm({
   stages,
   defaultStageId,
   onSaved,
+  onCreated,
 }: DealFormProps) {
   const t = useTranslations("Pipelines.form");
   const supabase = createClient();
-  const { accountId, defaultCurrency } = useAuth();
+  const { accountId, accountRole, defaultCurrency, profile } = useAuth();
+  const canDelete = useCan("delete-records");
 
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
@@ -101,11 +107,11 @@ export function DealForm({
       setValue("");
       setContactId("");
       setStageId(defaultStageId || stages[0]?.id || "");
-      setAssignedTo("");
+      setAssignedTo(accountRole === "agent" ? (profile?.id ?? "") : "");
       setExpectedCloseDate("");
       setNotes("");
     }
-  }, [open, deal, defaultStageId, stages, defaultCurrency]);
+  }, [open, deal, defaultStageId, stages, defaultCurrency, accountRole, profile?.id]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Load supporting data once the sheet is open
@@ -166,10 +172,14 @@ export function DealForm({
       contact_id: contactId,
       pipeline_id: pipelineId,
       stage_id: stageId,
-      assigned_to: assignedTo || null,
+      assigned_to:
+        assignedTo ||
+        (accountRole === "agent" ? (profile?.id ?? null) : null),
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
     };
+
+    let saved: { id: string; contact_id: string | null } | null = null;
 
     if (deal) {
       const { error } = await supabase
@@ -196,20 +206,24 @@ export function DealForm({
         setSaving(false);
         return;
       }
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("deals")
-        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" });
+        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" })
+        .select("id, contact_id")
+        .single();
       if (error) {
         toast.error(t("toastFailedCreate"));
         setSaving(false);
         return;
       }
+      saved = data as { id: string; contact_id: string | null };
     }
 
     setSaving(false);
     toast.success(deal ? t("toastUpdated") : t("toastCreated"));
     onOpenChange(false);
     onSaved();
+    if (saved) onCreated?.(saved);
   }
 
   async function handleStatusChange(status: DealStatus) {
@@ -217,7 +231,7 @@ export function DealForm({
     setStatusAction(status);
     const { error } = await supabase
       .from("deals")
-      .update({ status })
+      .update(dealStatusPatch(status))
       .eq("id", deal.id);
     setStatusAction(null);
     if (error) {
@@ -434,6 +448,7 @@ export function DealForm({
             </div>
 
             {deal &&
+              canDelete &&
               (confirmDelete ? (
                 <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs">
                   <span className="text-red-300">{t("deletePrompt")}</span>

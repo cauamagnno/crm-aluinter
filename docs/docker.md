@@ -1,114 +1,42 @@
 # Running with Docker
 
-The repo ships a multi-stage `Dockerfile` (Next.js standalone output,
-runs as a non-root user) and a `docker-compose.yml` with a single
-`app` service. Supabase is external — point the app at your hosted
-(or self-hosted) Supabase project via env vars; no database container
-is included.
+Compose sobe **PostgreSQL** (`pgvector/pgvector:pg16`) e, se você pedir, o app Next.js. Não há Supabase: auth, storage e realtime ficam no próprio app, em cima desse Postgres.
 
-## Quick start
+As migrations em `supabase/migrations/` são só arquivos SQL. O serviço `migrate` aplica elas no banco `crm-aluinter`.
 
-1. Copy the env template and fill it in:
+## Só o banco (app com `npm run dev`)
 
-   ```bash
-   cp .env.local.example .env.local
-   ```
-
-2. Build and start (the `--env-file` flag is required — Compose only
-   reads `.env` by default for `${VAR}` substitution, and this project
-   keeps its config in `.env.local`):
-
-   ```bash
-   docker compose --env-file .env.local up --build -d
-   ```
-
-3. The app is served on [http://localhost:3000](http://localhost:3000)
-   (publish it elsewhere with `HOST_PORT=8080` in `.env.local`).
-
-> Use `HOST_PORT`, not `PORT`, to move the published port. `PORT` is
-> what the server listens on _inside_ the container, and `env_file`
-> would inject it there — leaving the app on a port the mapping and
-> the healthcheck don't target. Compose pins it to 3000 for that
-> reason.
-
-## Build-time vs runtime variables
-
-- `NEXT_PUBLIC_*` variables are **inlined into the client bundle at
-  build time**. They are passed as Docker build args by
-  `docker-compose.yml`. If you change any of them, rebuild:
-  `docker compose --env-file .env.local up --build -d`.
-- Everything else (`SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_KEY`,
-  `META_APP_SECRET`, …) is read at **runtime** from `.env.local` via
-  `env_file` and is never baked into the image — safe to change with
-  just a container restart.
-
-## Plain Docker (no Compose)
+A porta **5432** do Mac costuma estar ocupada. O Postgres do Compose publica em **5433**.
 
 ```bash
-docker build \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
-  -t wacrm .
-
-docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
+cp .env.docker.local.example .env.docker.local
+cp .env.local.example .env.local
+npm run docker:db
+npm run dev
 ```
 
-## Local Supabase (`supabase start`) + app in Docker
+- Banco: `postgres://postgres:postgres@127.0.0.1:5433/crm-aluinter`
+- App: http://localhost:3004
+- Login demo (quando `SEED_DEMO=1`): `demo@local.test` / `demo123456`
 
-The Compose file runs **only the Next.js app**. Postgres/Auth/API still
-come from Supabase — usually the stack the CLI starts in Docker on your
-machine (`npx supabase start` in this repo).
+`.env.local` é o que o `next dev` lê. `DATABASE_URL` tem que apontar para `127.0.0.1:5433`, não para dentro da rede do Compose.
 
-Inside the `app` container, `http://127.0.0.1:54321` points at the
-container itself, not Supabase on the host. That shows up as
-`AuthRetryableFetchError: fetch failed` in the logs.
+## App + banco no Compose
 
-1. Start Supabase on the host (requires Docker):
-
-   ```bash
-   npx supabase start
-   ```
-
-2. Point the app at the host from Compose. In `.env.local` (used for
-   `--env-file` **and** build args), set:
-
-   ```bash
-   NEXT_PUBLIC_SUPABASE_URL=http://host.docker.internal:54321
-   NEXT_PUBLIC_SITE_URL=http://localhost:3000
-   ```
-
-   Keys can stay the default local demo values from `supabase status`.
-
-3. Rebuild and run (required whenever `NEXT_PUBLIC_*` changes):
-
-   ```bash
-   docker compose --env-file .env.local up --build -d
-   ```
-
-If you sometimes run `npm run dev` on the host and sometimes Docker, keep
-two files — e.g. `.env.local` with `127.0.0.1:54321` for dev and
-`.env.docker.local` with `host.docker.internal:54321` for Compose:
+O container do app também publica **3004**. Pare o `npm run dev` antes, senão a porta fica ocupada.
 
 ```bash
-docker compose --env-file .env.docker.local up --build -d
+npm run docker:up
 ```
 
-## Notes
+O app no container escuta 3000 por dentro e aparece em http://localhost:3004. `DATABASE_URL` aponta para o serviço `db`.
 
-- Database migrations under `supabase/` are **not** run by the
-  container — apply them with the Supabase CLI as described in the
-  README.
-- Received attachments are copied into the `chat-media` Supabase
-  Storage bucket, because Meta deletes media roughly 30 days after it
-  arrives and the copy is the only thing that outlives that. It grows
-  with inbound volume, so it's worth watching your project's storage
-  quota. Turn it off per account under Settings → WhatsApp →
-  Attachment Storage; attachments received while it's off become
-  unviewable once Meta drops them. Files over 16 MB (the bucket's
-  limit) are never copied.
-- Nothing inside the container is scheduled. If you use automation
-  Wait steps or flows, point an external scheduler at
-  `GET /api/automations/cron` and `GET /api/flows/cron` on this
-  deployment, sending the shared secret in the `x-cron-secret` header
-  (`AUTOMATION_CRON_SECRET`, see `.env.local.example`). Both return
-  503 until that variable is set.
+`NEXT_PUBLIC_*` e `AUTH_SECRET` entram no build. Se mudar, rode `npm run docker:up` de novo.
+
+## Parar
+
+```bash
+npm run docker:down
+```
+
+O volume `crm-aluinter-pgdata` permanece. Para apagar os dados: `docker volume rm crm-aluinter-pgdata`.

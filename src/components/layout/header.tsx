@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { formatCurrency } from "@/lib/currency";
+import { loadSalesReport } from "@/lib/dashboard/sales-report";
+import { periodThisMonth } from "@/lib/dashboard/period";
+import { LogOut, Menu, RefreshCw, Settings as SettingsIcon, User } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -24,7 +29,7 @@ const pageTitles: Record<string, string> = {
   "/notifications": "notifications",
   "/contacts": "contacts",
   "/pipelines": "pipelines",
-  "/tasks": "tasks",
+  "/tarefas": "tasks",
   "/broadcasts": "broadcasts",
   "/automations": "automations",
   "/settings": "settings",
@@ -49,8 +54,28 @@ import { useTranslations } from "next-intl";
 export function Header({ onOpenSidebar }: HeaderProps) {
   const t = useTranslations("Header");
   const pathname = usePathname();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, defaultCurrency } = useAuth();
   const titleKey = getPageTitleKey(pathname);
+  const [soldThisMonth, setSoldThisMonth] = useState<number | null>(null);
+  const [soldLoading, setSoldLoading] = useState(false);
+
+  const loadSold = useCallback(async () => {
+    if (!profile?.id) return;
+    setSoldLoading(true);
+    try {
+      const report = await loadSalesReport(createClient(), periodThisMonth(), profile.id);
+      setSoldThisMonth(report.wonValue);
+    } catch (err) {
+      console.error("[header] month sales failed:", err);
+      setSoldThisMonth(null);
+    } finally {
+      setSoldLoading(false);
+    }
+  }, [profile?.id]);
+
+  useEffect(() => {
+    void loadSold();
+  }, [loadSold]);
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
@@ -109,6 +134,23 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             <p className="truncate text-xs text-muted-foreground">
               {profile?.email ?? ""}
             </p>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">{t("soldThisMonth")}</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {soldThisMonth == null ? "—" : formatCurrency(soldThisMonth, defaultCurrency)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadSold()}
+                disabled={soldLoading}
+                aria-label={t("refreshSales")}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${soldLoading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
           </div>
           <DropdownMenuSeparator className="bg-border" />
           <DropdownMenuItem

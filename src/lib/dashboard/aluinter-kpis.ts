@@ -77,6 +77,7 @@ type DealRow = {
   assigned_to: string | null
   created_at: string
   updated_at: string
+  closed_at: string | null
 }
 
 type DB = SupabaseClient
@@ -162,7 +163,7 @@ export async function loadAluinterKpis(
     db.from('conversations').select('id, contact_id, assigned_agent_id, last_message_at'),
     db
       .from('deals')
-      .select('id, value, status, contact_id, assigned_to, created_at, updated_at'),
+      .select('id, value, status, contact_id, assigned_to, created_at, updated_at, closed_at'),
     db.from('tags').select('id, name'),
     db.from('contact_tags').select('contact_id, tag_id'),
     db.from('profiles').select('id, user_id, full_name'),
@@ -298,9 +299,9 @@ export async function loadAluinterKpis(
   let wonThisMonth = 0
   const wonByContact = new Map<string, { at: Date; value: number }[]>()
   for (const d of scopedDeals) {
-    if (d.status !== 'won') continue
-    const at = new Date(d.updated_at)
-    const value = d.value ?? 0
+    if (d.status !== 'won' || !d.closed_at) continue
+    const at = new Date(d.closed_at)
+    const value = Number(d.value ?? 0) || 0
     if (at >= todayStart && at < periodEnd) wonThisMonth += value
     if (!d.contact_id) continue
     const list = wonByContact.get(d.contact_id) ?? []
