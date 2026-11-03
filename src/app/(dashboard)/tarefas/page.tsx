@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { localDayKey } from "@/lib/dashboard/date-utils";
+import { SellerPicker } from "@/components/dashboard/seller-picker";
 import { DealTaskForm } from "@/components/pipelines/deal-task-form";
 import { Button } from "@/components/ui/button";
 import type { Deal, DealTask, Profile } from "@/types";
@@ -158,19 +159,14 @@ function TarefasPageInner() {
             </option>
           ))}
         </select>
-        <select
-          aria-label={t("seller")}
-          value={sellerId}
-          onChange={(e) => setSellerId(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-card px-2 text-sm"
-        >
-          <option value="all">{t("allSellers")}</option>
-          {profiles.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.full_name || person.email || t("noSeller")}
-            </option>
-          ))}
-        </select>
+        <SellerPicker
+          sellerId={sellerId}
+          sellers={profiles.map((person) => ({
+            id: person.id,
+            name: person.full_name || person.email || t("noSeller"),
+          }))}
+          onChange={setSellerId}
+        />
         <input
           type="date"
           value={from}

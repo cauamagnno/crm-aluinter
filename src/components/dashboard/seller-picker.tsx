@@ -3,6 +3,14 @@
 import { UserRound } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
 export function SellerPicker({
   sellerId,
   sellers,
@@ -13,23 +21,28 @@ export function SellerPicker({
   onChange: (sellerId: string) => void
 }) {
   const t = useTranslations('Dashboard.page')
+  const selected =
+    sellerId === 'all'
+      ? t('allSellers')
+      : sellers.find((seller) => seller.id === sellerId)?.name ?? t('allSellers')
 
   return (
-    <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-sm text-foreground">
-      <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <span className="sr-only">{t('seller')}</span>
-      <select
-        value={sellerId}
-        onChange={(e) => onChange(e.target.value)}
-        className="max-w-[220px] bg-transparent text-sm outline-none"
+    <Select value={sellerId} onValueChange={(value) => value && onChange(value)}>
+      <SelectTrigger
+        aria-label={t('seller')}
+        className="h-9 w-[240px] max-w-full border-border bg-card text-foreground"
       >
-        <option value="all">{t('allSellers')}</option>
+        <UserRound className="size-3.5 text-muted-foreground" />
+        <SelectValue>{selected}</SelectValue>
+      </SelectTrigger>
+      <SelectContent align="start" className="max-h-72 w-max min-w-[240px]">
+        <SelectItem value="all">{t('allSellers')}</SelectItem>
         {sellers.map((seller) => (
-          <option key={seller.id} value={seller.id}>
+          <SelectItem key={seller.id} value={seller.id}>
             {seller.name}
-          </option>
+          </SelectItem>
         ))}
-      </select>
-    </label>
+      </SelectContent>
+    </Select>
   )
 }
