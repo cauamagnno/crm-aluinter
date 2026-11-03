@@ -144,7 +144,7 @@ export default function PipelinesPage() {
       if (rows.length === 0) return rows;
       const { data: tasks } = await supabase
         .from("deal_tasks")
-        .select("*")
+        .select("*, assignee:profiles!deal_tasks_assignee_id_fkey(id, full_name, email)")
         .in(
           "deal_id",
           rows.map((d) => d.id),

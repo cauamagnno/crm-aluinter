@@ -17,6 +17,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/currency";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
+import { taskKindMessageKey, taskSeller } from "@/lib/pipelines/task-kinds";
 import type { Deal, DealStatus, DealTask, PipelineStage, Profile } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -356,6 +357,10 @@ export function DealDetailDialog({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{task.title}</p>
                     <p className="text-[11px] text-muted-foreground">
+                      {tTasks(taskKindMessageKey(task.kind))}
+                      {" · "}
+                      {taskSeller(task, profiles)?.name || "—"}
+                      {" · "}
                       {formatDateTime(task.due_at)}
                     </p>
                   </div>
@@ -370,6 +375,13 @@ export function DealDetailDialog({
                   className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground line-through"
                 >
                   {task.title}
+                  <span className="mt-0.5 block text-[11px] no-underline">
+                    {tTasks(taskKindMessageKey(task.kind))}
+                    {" · "}
+                    {taskSeller(task, profiles)?.name || "—"}
+                    {" · "}
+                    {formatDateTime(task.due_at)}
+                  </span>
                 </li>
               ))}
             </ul>

@@ -6,6 +6,7 @@ import {
   startOfLocalMonth,
 } from './date-utils'
 import { periodDays, periodLastDay, type DashboardPeriod } from './period'
+import type { SellerFilter } from './seller'
 
 export const ALUINTER = {
   conversationsPerDay: { target: 12, yellowMin: 8 },
@@ -134,6 +135,7 @@ function toSlices(
 export async function loadAluinterKpis(
   db: DB,
   period: DashboardPeriod,
+  seller: SellerFilter = null,
 ): Promise<AluinterKpiSnapshot> {
   const asOf = periodLastDay(period)
   const days = periodDays(period)
@@ -187,6 +189,9 @@ export async function loadAluinterKpis(
     return id
   }
 
+  const isSeller = (consultantId: string) =>
+    !seller || consultantId === seller.profileId
+
   const convById = new Map<
     string,
     { contact_id: string | null; assigned_agent_id: string | null; last_message_at: string | null }
@@ -219,10 +224,11 @@ export async function loadAluinterKpis(
   let realToday = 0
   for (const [key, flags] of parties) {
     if (!flags.customer || !flags.agent) continue
-    realToday += 1
     const convId = key.split('|')[0]
     const conv = convById.get(convId)
     const consultant = asConsultantId(conv?.assigned_agent_id, true)
+    if (!isSeller(consultant)) continue
+    realToday += 1
     realByConsultant.set(consultant, (realByConsultant.get(consultant) ?? 0) + 1)
   }
 
@@ -232,8 +238,9 @@ export async function loadAluinterKpis(
   for (const d of dealRows) {
     const created = new Date(d.created_at)
     if (created < todayStart || created >= periodEnd) continue
-    quotesThisWeek += 1
     const consultant = asConsultantId(d.assigned_to, false)
+    if (!isSeller(consultant)) continue
+    quotesThisWeek += 1
     quoteByConsultant.set(consultant, (quoteByConsultant.get(consultant) ?? 0) + 1)
   }
 
@@ -242,9 +249,31 @@ export async function loadAluinterKpis(
       .filter((t) => isCurveATag(t.name))
       .map((t) => t.id),
   )
+  const ownedContacts = new Set<string>()
+  if (seller) {
+    for (const c of (conversations.data ?? []) as {
+      contact_id: string | null
+      assigned_agent_id: string | null
+    }[]) {
+      if (
+        c.contact_id &&
+        asConsultantId(c.assigned_agent_id, true) === seller.profileId
+      ) {
+        ownedContacts.add(c.contact_id)
+      }
+    }
+    for (const d of dealRows) {
+      if (d.contact_id && asConsultantId(d.assigned_to, false) === seller.profileId) {
+        ownedContacts.add(d.contact_id)
+      }
+    }
+  }
+
   const curveContacts = new Set<string>()
   for (const row of (contactTags.data ?? []) as { contact_id: string; tag_id: string }[]) {
-    if (curveTagIds.has(row.tag_id)) curveContacts.add(row.contact_id)
+    if (!curveTagIds.has(row.tag_id)) continue
+    if (seller && !ownedContacts.has(row.contact_id)) continue
+    curveContacts.add(row.contact_id)
   }
   let curveContacted = 0
   for (const contactId of curveContacts) {
@@ -254,7 +283,10 @@ export async function loadAluinterKpis(
     if (at && at >= todayStart && at < periodEnd) curveContacted += 1
   }
 
-  const openDeals = dealRows.filter((d) => d.status === 'open')
+  const scopedDeals = seller
+    ? dealRows.filter((d) => asConsultantId(d.assigned_to, false) === seller.profileId)
+    : dealRows
+  const openDeals = scopedDeals.filter((d) => d.status === 'open')
   let onCadence = 0
   for (const d of openDeals) {
     const convId = d.contact_id ? convByContact.get(d.contact_id) : undefined
@@ -265,7 +297,7 @@ export async function loadAluinterKpis(
 
   let wonThisMonth = 0
   const wonByContact = new Map<string, { at: Date; value: number }[]>()
-  for (const d of dealRows) {
+  for (const d of scopedDeals) {
     if (d.status !== 'won') continue
     const at = new Date(d.updated_at)
     const value = d.value ?? 0

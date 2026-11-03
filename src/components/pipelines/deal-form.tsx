@@ -33,6 +33,10 @@ import {
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
+function contactCompanyLabel(contact: Contact) {
+  return contact.company?.trim() || "—";
+}
+
 interface DealFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -110,7 +114,7 @@ export function DealForm({
     let cancelled = false;
     (async () => {
       const [c, p] = await Promise.all([
-        supabase.from("contacts").select("*").order("name"),
+        supabase.from("contacts").select("*").order("company"),
         supabase.from("profiles").select("*").order("full_name"),
       ]);
       if (cancelled) return;
@@ -276,7 +280,7 @@ export function DealForm({
                 <option value="">{t("selectContact")}</option>
                 {contacts.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name || c.phone}
+                    {contactCompanyLabel(c)}
                   </option>
                 ))}
               </select>

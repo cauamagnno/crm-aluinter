@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { TASK_KINDS, taskKindMessageKey, type TaskKind } from "@/lib/pipelines/task-kinds";
 import type { Deal, Profile } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ export function DealTaskForm({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
+  const [kind, setKind] = useState<TaskKind>("ligacao");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("09:00");
   const [markDone, setMarkDone] = useState(false);
@@ -54,6 +56,7 @@ export function DealTaskForm({
     setTitle("");
     setDescription("");
     setAssigneeId(profile?.id ?? selected?.assigned_to ?? "");
+    setKind("ligacao");
     const now = new Date();
     setDueDate(now.toISOString().slice(0, 10));
     setDueTime(
@@ -81,7 +84,7 @@ export function DealTaskForm({
       description: description.trim() || null,
       assignee_id: assigneeId,
       due_at: dueAt.toISOString(),
-      kind: "tarefa",
+      kind,
       created_by: user.id,
       done_at: markDone ? new Date().toISOString() : null,
     });
@@ -158,7 +161,17 @@ export function DealTaskForm({
           </div>
           <div className="grid gap-1.5">
             <Label>{t("kind")} *</Label>
-            <Input value={t("kindTask")} readOnly className="bg-muted" />
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value as TaskKind)}
+              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
+            >
+              {TASK_KINDS.map((item) => (
+                <option key={item} value={item}>
+                  {t(taskKindMessageKey(item))}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="grid gap-1.5">
             <Label>{t("dueDate")} *</Label>

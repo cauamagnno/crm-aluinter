@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { LayoutDashboard, Megaphone, Target } from 'lucide-react'
@@ -26,6 +26,8 @@ import { GestaoPanel } from '@/components/dashboard/gestao-panel'
 import { MarketingPanel } from '@/components/dashboard/marketing-panel'
 import { OperacaoPanel } from '@/components/dashboard/operacao-panel'
 import { PeriodPicker } from '@/components/dashboard/period-picker'
+import { SellerPicker } from '@/components/dashboard/seller-picker'
+import type { SellerFilter } from '@/lib/dashboard/seller'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { useTranslations } from 'next-intl'
@@ -38,6 +40,10 @@ export default function DashboardPage() {
   const { defaultCurrency } = useAuth()
   const [tab, setTab] = useState<DashTab>('gestao')
   const [period, setPeriod] = useState<DashboardPeriod>(() => periodToday())
+  const [sellerId, setSellerId] = useState('all')
+  const [sellers, setSellers] = useState<
+    { id: string; userId: string | null; name: string }[]
+  >([])
 
   const [kpis, setKpis] = useState<AluinterKpiSnapshot | null>(null)
   const [kpisLoading, setKpisLoading] = useState(true)
@@ -57,49 +63,82 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<ActivityItem[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(true)
 
-  const loadAll = useCallback((range: DashboardPeriod) => {
+  const loadAll = useCallback((range: DashboardPeriod, seller: SellerFilter) => {
     const db = createClient()
     const asOf = periodLastDay(range)
 
     setKpisLoading(true)
     setMetricsLoading(true)
     setSeriesLoading(true)
+    setPipelineLoading(true)
     setResponseTimeLoading(true)
+    setActivityLoading(true)
 
-    void loadAluinterKpis(db, range)
+    void loadAluinterKpis(db, range, seller)
       .then((k) => setKpis(k))
       .catch((err) => console.error('[dashboard] aluinter kpis failed:', err))
       .finally(() => setKpisLoading(false))
 
-    void loadMetrics(db, range)
+    void loadMetrics(db, range, seller)
       .then((m) => setMetrics(m))
       .catch((err) => console.error('[dashboard] metrics failed:', err))
       .finally(() => setMetricsLoading(false))
 
-    void loadConversationsSeries(db, range)
+    void loadConversationsSeries(db, range, seller)
       .then((s) => setSeries(s))
       .catch((err) => console.error('[dashboard] series failed:', err))
       .finally(() => setSeriesLoading(false))
 
-    void loadPipelineDonut(db)
+    void loadPipelineDonut(db, seller)
       .then((p) => setPipeline(p))
       .catch((err) => console.error('[dashboard] pipeline failed:', err))
       .finally(() => setPipelineLoading(false))
 
-    void loadResponseTime(db, asOf)
+    void loadResponseTime(db, asOf, seller)
       .then((r) => setResponseTime(r))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
 
-    void loadActivity(db, 50)
+    void loadActivity(db, 50, seller)
       .then((a) => setActivity(a))
       .catch((err) => console.error('[dashboard] activity failed:', err))
       .finally(() => setActivityLoading(false))
   }, [])
 
   useEffect(() => {
-    loadAll(period)
-  }, [loadAll, period])
+    const db = createClient()
+    void db
+      .from('profiles')
+      .select('id, user_id, full_name, email')
+      .order('full_name')
+      .then(({ data }) => {
+        const rows = (data ?? []) as {
+          id: string
+          user_id: string | null
+          full_name: string | null
+          email: string | null
+        }[]
+        setSellers(
+          rows
+            .map((profile) => ({
+              id: profile.id,
+              userId: profile.user_id,
+              name: profile.full_name || profile.email || 'Vendedor',
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+        )
+      })
+  }, [])
+
+  const sellerFilter = useMemo<SellerFilter>(() => {
+    if (sellerId === 'all') return null
+    const selected = sellers.find((seller) => seller.id === sellerId)
+    return selected ? { profileId: selected.id, userId: selected.userId } : null
+  }, [sellerId, sellers])
+
+  useEffect(() => {
+    loadAll(period, sellerFilter)
+  }, [loadAll, period, sellerFilter])
 
   return (
     <div className="space-y-5">
@@ -111,7 +150,14 @@ export default function DashboardPage() {
           </p>
         </div>
         {tab !== 'marketing' ? (
-          <PeriodPicker period={period} onChange={setPeriod} />
+          <div className="flex flex-col gap-2 sm:items-end">
+            <SellerPicker
+              sellerId={sellerId}
+              sellers={sellers}
+              onChange={setSellerId}
+            />
+            <PeriodPicker period={period} onChange={setPeriod} />
+          </div>
         ) : null}
       </div>
 

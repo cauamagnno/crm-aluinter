@@ -4,6 +4,7 @@ import type { Deal, PipelineStage } from "@/types";
 import { Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
+import { profileLabel, taskKindMessageKey } from "@/lib/pipelines/task-kinds";
 import { useTranslations } from "next-intl";
 
 interface DealCardProps {
@@ -38,6 +39,7 @@ export function DealCard({
 }: DealCardProps) {
   const t = useTranslations("Pipelines.card");
   const tStatus = useTranslations("Pipelines.status");
+  const tTasks = useTranslations("Pipelines.tasks");
   const contactLabel = deal.contact?.name || deal.contact?.phone || t("noContact");
   const display = dealDisplayStatus(deal);
   const nextTask = deal.next_task;
@@ -100,7 +102,15 @@ export function DealCard({
       <div className="border-t border-border/70 px-2 py-1.5">
         {nextTask ? (
           <div className="rounded-md bg-rose-500/10 px-2 py-1 text-[11px] font-medium text-rose-600">
-            {nextTask.title.toUpperCase()} {formatTaskChip(nextTask.due_at)}
+            <p className="truncate">
+              {nextTask.title.toUpperCase()} {formatTaskChip(nextTask.due_at)}
+            </p>
+            <p className="truncate font-normal">
+              {tTasks(taskKindMessageKey(nextTask.kind))}
+              {profileLabel(nextTask.assignee)
+                ? ` · ${profileLabel(nextTask.assignee)}`
+                : ""}
+            </p>
           </div>
         ) : onCreateTask && !isOverlay ? (
           <button

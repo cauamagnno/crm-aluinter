@@ -8,6 +8,7 @@ import {
   mondayIndex,
 } from './date-utils'
 import { periodDays, type DashboardPeriod } from './period'
+import type { SellerFilter } from './seller'
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
@@ -28,14 +29,48 @@ import type {
 
 type DB = SupabaseClient
 
+const NO_AGENT = '00000000-0000-0000-0000-000000000000'
+
+function agentId(seller: SellerFilter): string | null {
+  if (!seller) return null
+  return seller.userId ?? NO_AGENT
+}
+
+async function conversationIdsForSeller(
+  db: DB,
+  seller: SellerFilter,
+): Promise<string[] | null> {
+  const userId = agentId(seller)
+  if (!userId) return null
+  const { data } = await db
+    .from('conversations')
+    .select('id')
+    .eq('assigned_agent_id', userId)
+  return ((data ?? []) as { id: string }[]).map((row) => row.id)
+}
+
 // --- 1. Metric cards ---------------------------------------------------
 
-export async function loadMetrics(db: DB, period: DashboardPeriod): Promise<MetricsBundle> {
+export async function loadMetrics(
+  db: DB,
+  period: DashboardPeriod,
+  seller: SellerFilter = null,
+): Promise<MetricsBundle> {
   const start = period.start.toISOString()
   const end = period.end.toISOString()
   const days = periodDays(period)
   const prevEnd = period.start
   const prevStart = addLocalDays(period.start, -days)
+
+  const assignedAgent = agentId(seller)
+  const convIds = await conversationIdsForSeller(db, seller)
+
+  const scopeAgent = <T extends { eq: (column: string, value: string) => T }>(query: T) =>
+    assignedAgent ? query.eq('assigned_agent_id', assignedAgent) : query
+  const scopeDeal = <T extends { eq: (column: string, value: string) => T }>(query: T) =>
+    seller ? query.eq('assigned_to', seller.profileId) : query
+  const scopeConv = <T extends { in: (column: string, value: string[]) => T }>(query: T) =>
+    convIds ? query.in('conversation_id', convIds) : query
 
   const [
     openConvCur,
@@ -47,19 +82,23 @@ export async function loadMetrics(db: DB, period: DashboardPeriod): Promise<Metr
     messagesToday,
     messagesYesterday,
   ] = await Promise.all([
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .gte('created_at', start)
-      .lt('created_at', end),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .gte('created_at', prevStart.toISOString())
-      .lt('created_at', prevEnd.toISOString()),
+    scopeAgent(db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open')),
+    scopeAgent(
+      db
+        .from('conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+        .gte('created_at', start)
+        .lt('created_at', end),
+    ),
+    scopeAgent(
+      db
+        .from('conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+        .gte('created_at', prevStart.toISOString())
+        .lt('created_at', prevEnd.toISOString()),
+    ),
     db
       .from('contacts')
       .select('id', { count: 'exact', head: true })
@@ -70,19 +109,23 @@ export async function loadMetrics(db: DB, period: DashboardPeriod): Promise<Metr
       .select('id', { count: 'exact', head: true })
       .gte('created_at', prevStart.toISOString())
       .lt('created_at', prevEnd.toISOString()),
-    db.from('deals').select('value, status').eq('status', 'open'),
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
-      .gte('created_at', start)
-      .lt('created_at', end),
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
-      .gte('created_at', prevStart.toISOString())
-      .lt('created_at', prevEnd.toISOString()),
+    scopeDeal(db.from('deals').select('value, status').eq('status', 'open')),
+    scopeConv(
+      db
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('sender_type', 'agent')
+        .gte('created_at', start)
+        .lt('created_at', end),
+    ),
+    scopeConv(
+      db
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('sender_type', 'agent')
+        .gte('created_at', prevStart.toISOString())
+        .lt('created_at', prevEnd.toISOString()),
+    ),
   ])
 
   const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]
@@ -114,13 +157,17 @@ export async function loadMetrics(db: DB, period: DashboardPeriod): Promise<Metr
 export async function loadConversationsSeries(
   db: DB,
   period: DashboardPeriod,
+  seller: SellerFilter = null,
 ): Promise<ConversationsSeriesPoint[]> {
-  const { data, error } = await db
+  const convIds = await conversationIdsForSeller(db, seller)
+  let query = db
     .from('messages')
     .select('created_at, sender_type')
     .gte('created_at', period.start.toISOString())
     .lt('created_at', period.end.toISOString())
     .order('created_at', { ascending: true })
+  if (convIds) query = query.in('conversation_id', convIds)
+  const { data, error } = await query
   if (error) throw error
 
   const keys = eachLocalDay(period.start, period.end)
@@ -140,10 +187,15 @@ export async function loadConversationsSeries(
 
 // --- 3. Pipeline donut -------------------------------------------------
 
-export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
+export async function loadPipelineDonut(
+  db: DB,
+  seller: SellerFilter = null,
+): Promise<PipelineDonutData> {
+  let dealsQuery = db.from('deals').select('stage_id, value, status').eq('status', 'open')
+  if (seller) dealsQuery = dealsQuery.eq('assigned_to', seller.profileId)
   const [stagesRes, dealsRes] = await Promise.all([
     db.from('pipeline_stages').select('id, name, color, pipeline_id, position').order('position'),
-    db.from('deals').select('stage_id, value, status').eq('status', 'open'),
+    dealsQuery,
   ])
 
   const stages =
@@ -182,14 +234,18 @@ export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
 export async function loadResponseTime(
   db: DB,
   asOf: Date = new Date(),
+  seller: SellerFilter = null,
 ): Promise<ResponseTimeSummary> {
   const fourteenDaysAgo = daysAgoStart(13, asOf).toISOString()
-  const { data, error } = await db
+  const convIds = await conversationIdsForSeller(db, seller)
+  let query = db
     .from('messages')
     .select('conversation_id, sender_type, created_at')
     .gte('created_at', fourteenDaysAgo)
     .order('conversation_id', { ascending: true })
     .order('created_at', { ascending: true })
+  if (convIds) query = query.in('conversation_id', convIds)
+  const { data, error } = await query
   if (error) throw error
 
   const rows = (data ?? []) as {
@@ -273,27 +329,37 @@ export async function loadResponseTime(
 
 // --- 5. Activity feed --------------------------------------------------
 
-export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> {
+export async function loadActivity(
+  db: DB,
+  limit = 20,
+  seller: SellerFilter = null,
+): Promise<ActivityItem[]> {
   // Pull ~10 from each source (plenty of headroom after merge-sort),
   // then interleave by timestamp. The individual per-table limits
   // keep the payload small; the final limit is enforced after sort.
+  const convIds = await conversationIdsForSeller(db, seller)
+  let messagesQuery = db
+    .from('messages')
+    .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
+    .eq('sender_type', 'customer')
+    .order('created_at', { ascending: false })
+    .limit(10)
+  if (convIds) messagesQuery = messagesQuery.in('conversation_id', convIds)
+  let dealsQuery = db
+    .from('deals')
+    .select('id, title, updated_at, stage:pipeline_stages(name)')
+    .order('updated_at', { ascending: false })
+    .limit(10)
+  if (seller) dealsQuery = dealsQuery.eq('assigned_to', seller.profileId)
+
   const [msgs, contacts, deals, broadcasts, autoLogs] = await Promise.all([
-    db
-      .from('messages')
-      .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
-      .eq('sender_type', 'customer')
-      .order('created_at', { ascending: false })
-      .limit(10),
+    messagesQuery,
     db
       .from('contacts')
       .select('id, name, phone, created_at')
       .order('created_at', { ascending: false })
       .limit(10),
-    db
-      .from('deals')
-      .select('id, title, updated_at, stage:pipeline_stages(name)')
-      .order('updated_at', { ascending: false })
-      .limit(10),
+    dealsQuery,
     db
       .from('broadcasts')
       .select('id, name, status, total_recipients, created_at')
