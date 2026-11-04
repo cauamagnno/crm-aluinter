@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal, DealTask, Profile } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
@@ -97,6 +97,7 @@ function PipelinesPageInner() {
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
   const { accountId, accountRole } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -134,6 +135,7 @@ function PipelinesPageInner() {
   const [contactIntent, setContactIntent] = useState<"contact" | "company">("contact");
   const [contactCardId, setContactCardId] = useState<string | null>(null);
   const [contactCardOpen, setContactCardOpen] = useState(false);
+  const [contactCardTab, setContactCardTab] = useState<"details" | "overview">("details");
   const linkApplied = useRef(false);
 
   const seedAttempted = useRef(false);
@@ -167,7 +169,11 @@ function PipelinesPageInner() {
     }
   }, [searchParams]);
 
-  function openClientCard(contactId: string) {
+  function openClientCard(
+    contactId: string,
+    tab: "details" | "overview" = "details",
+  ) {
+    setContactCardTab(tab);
     setContactCardId(contactId);
     setContactCardOpen(true);
   }
@@ -376,9 +382,8 @@ function PipelinesPageInner() {
   );
 
   const handleOpenDeal = useCallback((deal: Deal) => {
-    setEditingDeal(deal);
-    setDetailOpen(true);
-  }, []);
+    router.push(`/pipelines/${deal.id}`);
+  }, [router]);
 
   const handleCreateTask = useCallback((deal: Deal | null) => {
     setTaskDeal(deal);
@@ -605,7 +610,7 @@ function PipelinesPageInner() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold">{t("title")}</h1>
@@ -826,38 +831,42 @@ function PipelinesPageInner() {
           </GatedButton>
         </div>
       ) : (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
           <PipelineAnalytics stages={stages} deals={visibleDeals} />
-          {view === "list" ? (
-            <DealList
-              deals={listDeals}
-              stages={stages}
-              profiles={profiles}
-              loading={cardsLoading && listDeals.length === 0 && visibleDeals.length > 0}
-              hasMore={visibleDeals.length > listLimit}
-              onLoadMore={() => setListLimit((current) => current + LIST_PAGE_SIZE)}
-              onOpen={handleOpenDeal}
-            />
-          ) : (
-            <PipelineBoard
-              stages={stages}
-              deals={boardDeals}
-              stageStats={cardWindows}
-              cardsLoading={cardsLoading}
-              onLoadMore={(stageId) =>
-                setPageLimit((prev) => ({
-                  ...prev,
-                  [stageId]: (prev[stageId] ?? DEALS_PAGE_SIZE) + DEALS_PAGE_SIZE,
-                }))
-              }
-              onDealMoved={handleDealMoved}
-              onAddDeal={handleAddDeal}
-              onEditDeal={handleOpenDeal}
-              onCreateTask={handleCreateTask}
-              scrollToStartToken={kanbanStartToken}
-            />
-          )}
-        </>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {view === "list" ? (
+              <div className="h-full overflow-y-auto">
+                <DealList
+                  deals={listDeals}
+                  stages={stages}
+                  profiles={profiles}
+                  loading={cardsLoading && listDeals.length === 0 && visibleDeals.length > 0}
+                  hasMore={visibleDeals.length > listLimit}
+                  onLoadMore={() => setListLimit((current) => current + LIST_PAGE_SIZE)}
+                  onOpen={handleOpenDeal}
+                />
+              </div>
+            ) : (
+              <PipelineBoard
+                stages={stages}
+                deals={boardDeals}
+                stageStats={cardWindows}
+                cardsLoading={cardsLoading}
+                onLoadMore={(stageId) =>
+                  setPageLimit((prev) => ({
+                    ...prev,
+                    [stageId]: (prev[stageId] ?? DEALS_PAGE_SIZE) + DEALS_PAGE_SIZE,
+                  }))
+                }
+                onDealMoved={handleDealMoved}
+                onAddDeal={handleAddDeal}
+                onEditDeal={handleOpenDeal}
+                onCreateTask={handleCreateTask}
+                scrollToStartToken={kanbanStartToken}
+              />
+            )}
+          </div>
+        </div>
       )}
 
       <Dialog open={newPipelineOpen} onOpenChange={setNewPipelineOpen}>
@@ -922,7 +931,11 @@ function PipelinesPageInner() {
         stages={stages}
         defaultStageId={defaultStageId}
         onSaved={refreshDeals}
-        onCreated={() => {
+        onCreated={(saved) => {
+          if (saved.contact_id) {
+            router.push(`/contacts/${saved.contact_id}`);
+            return;
+          }
           setView("kanban");
           setKanbanStartToken((current) => current + 1);
         }}
@@ -971,6 +984,7 @@ function PipelinesPageInner() {
         open={contactCardOpen}
         onOpenChange={setContactCardOpen}
         contactId={contactCardId}
+        initialTab={contactCardTab}
         onUpdated={() => undefined}
       />
 

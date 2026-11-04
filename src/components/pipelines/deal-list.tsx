@@ -80,13 +80,13 @@ export function DealList({
         <table className="w-full min-w-[880px] text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
             <tr>
+              <th className="px-3 py-2 font-medium">{t("colNextTask")}</th>
               <th className="px-3 py-2 font-medium">{t("colDeal")}</th>
               <th className="px-3 py-2 font-medium">{t("colCompany")}</th>
               <th className="px-3 py-2 font-medium">{t("colStage")}</th>
               <th className="px-3 py-2 font-medium">{t("colStatus")}</th>
               <th className="px-3 py-2 font-medium">{t("colOwner")}</th>
               <th className="px-3 py-2 font-medium">{t("colValue")}</th>
-              <th className="px-3 py-2 font-medium">{t("colNextTask")}</th>
             </tr>
           </thead>
           <tbody>
@@ -100,6 +100,16 @@ export function DealList({
                   className="cursor-pointer border-t border-border hover:bg-muted/40"
                   onClick={() => onOpen(deal)}
                 >
+                  <td className="px-3 py-2 text-foreground">
+                    {nextTask ? (
+                      <span className="block max-w-[220px] truncate">
+                        {nextTask.title}
+                        {nextTask.due_at ? ` · ${formatWhen(nextTask.due_at)}` : ""}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-3 py-2 font-medium text-foreground">{deal.title}</td>
                   <td className="px-3 py-2 text-muted-foreground">{companyName(deal)}</td>
                   <td className="px-3 py-2 text-foreground">{stage?.name ?? "—"}</td>
@@ -113,16 +123,6 @@ export function DealList({
                   <td className="px-3 py-2 text-muted-foreground">{ownerName(deal, profiles)}</td>
                   <td className="px-3 py-2 text-foreground">
                     {formatCurrency(deal.value, deal.currency)}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {nextTask ? (
-                      <span className="block max-w-[240px] truncate">
-                        {nextTask.title}
-                        {nextTask.due_at ? ` · ${formatWhen(nextTask.due_at)}` : ""}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
                   </td>
                 </tr>
               );

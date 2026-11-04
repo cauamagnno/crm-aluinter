@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
@@ -51,7 +52,6 @@ import {
   X,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
-import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager';
 import { useCan } from '@/hooks/use-can';
@@ -69,6 +69,7 @@ export function ContactsDirectory({
 }: {
   mode?: 'contacts' | 'companies';
 }) {
+  const router = useRouter();
   const companies = mode === 'companies';
   const t = useTranslations('Contacts.page');
   const tc = useTranslations('Empresas');
@@ -89,8 +90,6 @@ export function ContactsDirectory({
   const [formOpen, setFormOpen] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editContactTags, setEditContactTags] = useState<ContactTag[]>([]);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailContactId, setDetailContactId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -269,8 +268,7 @@ export function ContactsDirectory({
   }
 
   function openDetail(contactId: string) {
-    setDetailContactId(contactId);
-    setDetailOpen(true);
+    router.push(companies ? `/empresas/${contactId}` : `/contacts/${contactId}`);
   }
 
   function confirmDelete(contact: Contact) {
@@ -687,9 +685,9 @@ export function ContactsDirectory({
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden lg:table-cell">
-                    {new Date(contact.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
+                    {new Date(contact.created_at).toLocaleDateString('pt-BR', {
                       day: 'numeric',
+                      month: 'short',
                       year: 'numeric',
                     })}
                   </TableCell>
@@ -797,14 +795,6 @@ export function ContactsDirectory({
           setFormOpen(false);
           openDetail(id);
         }}
-      />
-
-      {/* Contact Detail Sheet */}
-      <ContactDetailView
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        contactId={detailContactId}
-        onUpdated={fetchContacts}
       />
 
       {/* Import Modal */}

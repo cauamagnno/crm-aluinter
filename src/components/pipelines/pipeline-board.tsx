@@ -124,7 +124,7 @@ export function PipelineBoard({
     >
       <div
         ref={scrollerRef}
-        className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none"
+        className="pipeline-scroll flex h-full min-h-0 snap-x snap-mandatory items-stretch gap-3 overflow-x-auto overflow-y-hidden lg:snap-none"
       >
         {sortedStages.map((stage) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
@@ -186,17 +186,22 @@ export function PipelineBoard({
           }
         }
         @media (hover: hover) and (pointer: fine) {
-          .pipeline-scroll {
+          .pipeline-scroll,
+          :global(.pipeline-column-scroll) {
             scrollbar-width: thin;
             scrollbar-color: var(--border) transparent;
           }
-          .pipeline-scroll::-webkit-scrollbar {
+          .pipeline-scroll::-webkit-scrollbar,
+          :global(.pipeline-column-scroll)::-webkit-scrollbar {
             height: 8px;
+            width: 8px;
           }
-          .pipeline-scroll::-webkit-scrollbar-track {
+          .pipeline-scroll::-webkit-scrollbar-track,
+          :global(.pipeline-column-scroll)::-webkit-scrollbar-track {
             background: transparent;
           }
-          .pipeline-scroll::-webkit-scrollbar-thumb {
+          .pipeline-scroll::-webkit-scrollbar-thumb,
+          :global(.pipeline-column-scroll)::-webkit-scrollbar-thumb {
             background-color: var(--border);
             border-radius: 9999px;
           }
@@ -237,7 +242,7 @@ function StageColumn({
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
   return (
-    <div className="flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-muted/30 p-3 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[240px] lg:shrink lg:snap-none">
+    <div className="flex h-full min-h-0 w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-muted/30 p-3 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[240px] lg:shrink lg:snap-none">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="truncate text-xs font-semibold tracking-wide text-foreground uppercase">
@@ -263,7 +268,7 @@ function StageColumn({
 
       <div
         ref={setNodeRef}
-        className={`mt-3 flex flex-1 flex-col gap-2 rounded-lg transition-all ${
+        className={`pipeline-column-scroll mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain rounded-lg transition-all ${
           isOver
             ? "bg-primary/5 outline outline-2 outline-dashed outline-primary outline-offset-2"
             : ""

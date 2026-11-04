@@ -107,6 +107,9 @@ export interface Contact {
   name?: string;
   email?: string;
   company?: string;
+  company_segment?: string | null;
+  company_url?: string | null;
+  company_address?: string | null;
   /** Vendor who owns this company. profiles.id. */
   assigned_to?: string | null;
   avatar_url?: string;
@@ -389,6 +392,7 @@ export interface DealTask {
 export interface Deal {
   id: string;
   user_id: string;
+  account_id?: string;
   pipeline_id: string;
   stage_id: string;
   /**
@@ -402,6 +406,8 @@ export interface Deal {
   value: number;
   currency?: string;
   notes?: string;
+  /** Catalog names chosen on the opportunity page. */
+  products?: string[] | null;
   expected_close_date?: string;
   status?: DealStatus;
   paused?: boolean;

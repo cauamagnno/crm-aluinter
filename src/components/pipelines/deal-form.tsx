@@ -46,6 +46,8 @@ interface DealFormProps {
   pipelineId: string;
   stages: PipelineStage[];
   defaultStageId?: string;
+  /** Contact selected when the form opens to create a deal. */
+  initialContactId?: string;
   onSaved: () => void;
   /** After a successful save, the parent can open the client or deal card. */
   onCreated?: (saved: { id: string; contact_id: string | null }) => void;
@@ -58,6 +60,7 @@ export function DealForm({
   pipelineId,
   stages,
   defaultStageId,
+  initialContactId,
   onSaved,
   onCreated,
 }: DealFormProps) {
@@ -105,13 +108,13 @@ export function DealForm({
     } else {
       setTitle("");
       setValue("");
-      setContactId("");
+      setContactId(initialContactId ?? "");
       setStageId(defaultStageId || stages[0]?.id || "");
       setAssignedTo(accountRole === "agent" ? (profile?.id ?? "") : "");
       setExpectedCloseDate("");
       setNotes("");
     }
-  }, [open, deal, defaultStageId, stages, defaultCurrency, accountRole, profile?.id]);
+  }, [open, deal, defaultStageId, stages, defaultCurrency, accountRole, profile?.id, initialContactId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Load supporting data once the sheet is open

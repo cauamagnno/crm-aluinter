@@ -48,6 +48,8 @@ interface ContactFormProps {
   /** Company requires the company name and uses it as the client name when empty. */
   intent?: "contact" | "company";
   onCreated?: (contactId: string) => void;
+  /** Prefills the company field when creating a contact from a company page. */
+  defaultCompany?: string;
 }
 
 export function ContactForm({
@@ -60,6 +62,7 @@ export function ContactForm({
   asSheet = false,
   intent = 'contact',
   onCreated,
+  defaultCompany = '',
 }: ContactFormProps) {
   const t = useTranslations('Contacts.form');
   const supabase = createClient();
@@ -93,7 +96,7 @@ export function ContactForm({
       setName(contact?.name ?? '');
       setPhone(contact?.phone ?? '');
       setEmail(contact?.email ?? '');
-      setCompany(contact?.company ?? '');
+      setCompany(contact?.company ?? defaultCompany);
       setAssignedTo(contact?.assigned_to ?? profile?.id ?? '');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
       setDupMatch(null);
@@ -106,7 +109,7 @@ export function ContactForm({
           if (data) setOwnerOptions(data as Pick<Profile, 'id' | 'full_name' | 'email'>[]);
         });
     }
-  }, [open, contact, profile?.id, supabase]);
+  }, [open, contact, profile?.id, supabase, defaultCompany]);
 
   // Look up an existing contact with this number (new contacts only).
   // Runs on blur so we don't query on every keystroke.

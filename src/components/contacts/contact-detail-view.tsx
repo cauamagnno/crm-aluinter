@@ -1,13 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { addContactTag, deleteContactTag } from '@/lib/contacts/tag-api';
 import { useAuth } from '@/hooks/use-auth';
 import { useCan } from '@/hooks/use-can';
 import { formatCurrency } from '@/lib/currency';
+import { dealDisplayStatus } from '@/lib/pipelines/status';
+import { DealTaskForm } from '@/components/pipelines/deal-task-form';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal, MessageTemplate } from '@/types';
+import type { Contact, Tag, ContactNote, CustomField, Deal, DealTask, MessageTemplate, Profile } from '@/types';
+import { taskKindMessageKey } from '@/lib/pipelines/task-kinds';
 import {
   TemplatePicker,
   type TemplateSendValues,
@@ -17,7 +22,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -28,6 +32,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
+  ArrowLeft,
   Phone,
   Mail,
   Building2,
@@ -43,27 +48,61 @@ import {
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
+function historyStatusText(
+  text: string,
+  tStatus: (key: 'open' | 'won' | 'lostFemale' | 'paused') => string,
+) {
+  const [code, ...rest] = text.split(' · ');
+  const label =
+    code === 'won'
+      ? tStatus('won')
+      : code === 'lost'
+        ? tStatus('lostFemale')
+        : code === 'paused'
+          ? tStatus('paused')
+          : tStatus('open');
+  return [label, ...rest].join(' · ');
+}
+
 interface ContactDetailViewProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contactId: string | null;
   onUpdated: () => void;
+  /** Opens the client 360 (history + tasks) instead of the details tab. */
+  initialTab?: 'details' | 'overview';
+  /** Full page instead of the side sheet. */
+  asPage?: boolean;
 }
+
+type ClientTask = DealTask & { dealTitle: string };
+
+type HistoryRow = {
+  id: string;
+  at: string;
+  kind: 'deal' | 'stage' | 'status' | 'tag' | 'note' | 'task' | 'taskDone';
+  text: string;
+};
 
 export function ContactDetailView({
   open,
   onOpenChange,
   contactId,
   onUpdated,
+  initialTab = 'details',
+  asPage = false,
 }: ContactDetailViewProps) {
   const t = useTranslations('Contacts.detailView');
+  const router = useRouter();
+  const tTasks = useTranslations('Pipelines.tasks');
+  const tStatus = useTranslations('Pipelines.status');
   const canDelete = useCan('delete-records');
   const canEdit = useCan('send-messages');
   const supabase = createClient();
   const { accountId, defaultCurrency } = useAuth();
 
   const [contact, setContact] = useState<Contact | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(contactId));
   const [copiedPhone, setCopiedPhone] = useState(false);
 
   // Send template — lets the business initiate (or re-open) a conversation
@@ -101,6 +140,11 @@ export function ContactDetailView({
   // Deals tab
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
+
+  const [clientTasks, setClientTasks] = useState<ClientTask[]>([]);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
 
   const fetchContact = useCallback(async () => {
     if (!contactId) return;
@@ -224,6 +268,140 @@ export function ContactDetailView({
     setLoadingDeals(false);
   }, [contactId, supabase]);
 
+  const fetchOverview = useCallback(async () => {
+    if (!contactId) return;
+    setLoadingOverview(true);
+
+    const [dealRes, noteRes, tagRes] = await Promise.all([
+      supabase
+        .from('deals')
+        .select('id, title, value, currency, status, paused, created_at, updated_at, closed_at, stage:pipeline_stages(id, name)')
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('contact_notes')
+        .select('id, note_text, created_at')
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('contact_tags')
+        .select('id, created_at, tag:tags(id, name)')
+        .eq('contact_id', contactId),
+    ]);
+
+    const dealRows = (dealRes.data ?? []) as Array<{
+      id: string;
+      title: string;
+      value: number;
+      currency?: string;
+      status?: Deal['status'];
+      paused?: boolean;
+      created_at: string;
+      updated_at?: string;
+      closed_at?: string | null;
+      stage?: { name?: string } | null;
+    }>;
+    const dealIds = dealRows.map((deal) => deal.id);
+
+    const taskRes = dealIds.length
+      ? await supabase
+          .from('deal_tasks')
+          .select('*')
+          .in('deal_id', dealIds)
+          .order('due_at', { ascending: true })
+      : { data: [] as DealTask[] };
+
+    const titleByDeal = new Map(dealRows.map((deal) => [deal.id, deal.title]));
+    const tasks = ((taskRes.data ?? []) as DealTask[]).map((task) => ({
+      ...task,
+      dealTitle: titleByDeal.get(task.deal_id) ?? '',
+    }));
+    setClientTasks(tasks);
+
+    const tagRows = (tagRes.data ?? []) as Array<{
+      id: string;
+      created_at?: string;
+      tag?: { name?: string } | Array<{ name?: string }> | null;
+    }>;
+    const rows: HistoryRow[] = [
+      ...dealRows.flatMap((deal) => {
+        const status = dealDisplayStatus(deal as Deal);
+        const events: HistoryRow[] = [
+          {
+            id: `deal-${deal.id}`,
+            at: deal.created_at,
+            kind: 'deal',
+            text: deal.title,
+          },
+          {
+            id: `status-${deal.id}`,
+            at:
+              status === 'won' || status === 'lost'
+                ? deal.closed_at || deal.updated_at || deal.created_at
+                : deal.updated_at || deal.created_at,
+            kind: 'status',
+            text: `${status} · ${deal.title}`,
+          },
+        ];
+        if (deal.stage?.name) {
+          events.push({
+            id: `stage-${deal.id}`,
+            at: deal.updated_at || deal.created_at,
+            kind: 'stage',
+            text: `${deal.stage.name} · ${deal.title}`,
+          });
+        }
+        return events;
+      }),
+      ...((noteRes.data ?? []) as Array<{
+        id: string;
+        note_text: string;
+        created_at: string;
+      }>).map((note) => ({
+        id: `note-${note.id}`,
+        at: note.created_at,
+        kind: 'note' as const,
+        text: note.note_text,
+      })),
+      ...tagRows.flatMap((row) => {
+        const tag = Array.isArray(row.tag) ? row.tag[0] : row.tag;
+        const name = tag?.name?.trim();
+        if (!name) return [];
+        return [
+          {
+            id: `tag-${row.id}`,
+            at: row.created_at || new Date(0).toISOString(),
+            kind: 'tag' as const,
+            text: name,
+          },
+        ];
+      }),
+      ...tasks.flatMap((task) => {
+        const events: HistoryRow[] = [
+          {
+            id: `task-${task.id}`,
+            at: task.created_at,
+            kind: 'task',
+            text: [task.title, task.dealTitle].filter(Boolean).join(' · '),
+          },
+        ];
+        if (task.done_at) {
+          events.push({
+            id: `task-done-${task.id}`,
+            at: task.done_at,
+            kind: 'taskDone',
+            text: [task.title, task.dealTitle].filter(Boolean).join(' · '),
+          });
+        }
+        return events;
+      }),
+    ];
+    rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    setHistory(rows);
+    setLoadingOverview(false);
+  }, [contactId, supabase]);
+
   useEffect(() => {
     if (open && contactId) {
       fetchContact();
@@ -231,8 +409,9 @@ export function ContactDetailView({
       fetchNotes();
       fetchCustomFields();
       fetchDeals();
+      fetchOverview();
     }
-  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals]);
+  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchOverview]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -421,13 +600,8 @@ export function ContactDetailView({
       .slice(0, 2);
   }
 
-  return (
+  const panel = (
     <>
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="bg-popover border-border text-popover-foreground sm:max-w-lg w-full p-0"
-      >
         {loading || !contact ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="size-6 animate-spin text-primary" />
@@ -443,12 +617,18 @@ export function ContactDetailView({
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <SheetTitle className="text-popover-foreground truncate">
-                    {contact.name || t('unnamed')}
-                  </SheetTitle>
-                  <SheetDescription className="text-muted-foreground text-xs mt-0.5">
+                  {asPage ? (
+                    <h1 className="truncate text-lg font-medium text-popover-foreground">
+                      {contact.name || t('unnamed')}
+                    </h1>
+                  ) : (
+                    <SheetTitle className="text-popover-foreground truncate">
+                      {contact.name || t('unnamed')}
+                    </SheetTitle>
+                  )}
+                  <p className="text-muted-foreground text-xs mt-0.5">
                     {t('contactDetailsDesc')}
-                  </SheetDescription>
+                  </p>
                   <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                     <button
                       onClick={copyPhone}
@@ -495,8 +675,18 @@ export function ContactDetailView({
             </SheetHeader>
 
             {/* Tabs */}
-            <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-              <TabsList className="bg-muted/50 border-b border-border mx-4 mt-3">
+            <Tabs
+              key={`${contactId ?? 'none'}-${initialTab}`}
+              defaultValue={initialTab}
+              className="flex-1 flex flex-col min-h-0"
+            >
+              <TabsList className="bg-muted/50 border-b border-border mx-4 mt-3 w-auto max-w-full overflow-x-auto">
+                <TabsTrigger
+                  value="overview"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  {t('tabs.overview')}
+                </TabsTrigger>
                 <TabsTrigger
                   value="details"
                   className="data-active:bg-muted data-active:text-primary text-muted-foreground"
@@ -528,6 +718,112 @@ export function ContactDetailView({
                   {t('tabs.deals')}
                 </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="overview" className="flex-1 overflow-y-auto px-4 py-3">
+                {loadingOverview ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="size-5 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    <section>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold">{t('overviewTab.tasks')}</h3>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (deals.length === 0) {
+                              toast.error(t('overviewTab.needDeal'));
+                              return;
+                            }
+                            setTaskFormOpen(true);
+                          }}
+                        >
+                          <Plus className="size-3.5" />
+                          {t('overviewTab.createTask')}
+                        </Button>
+                      </div>
+                      {clientTasks.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">{t('overviewTab.noTasks')}</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {clientTasks.map((task) => {
+                            const seller = owners.find((owner) => owner.id === task.assignee_id);
+                            return (
+                              <li
+                                key={task.id}
+                                className="rounded-lg border border-border bg-muted/40 px-3 py-2"
+                              >
+                                <p className={task.done_at ? 'text-sm text-muted-foreground line-through' : 'text-sm font-medium'}>
+                                  {task.title}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {tTasks(taskKindMessageKey(task.kind))}
+                                  {task.dealTitle ? ` · ${task.dealTitle}` : ''}
+                                  {seller ? ` · ${seller.full_name || seller.email || ''}` : ''}
+                                  {' · '}
+                                  {new Date(task.due_at).toLocaleString('pt-BR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </p>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </section>
+                    <section>
+                      <h3 className="mb-2 text-sm font-semibold">{t('overviewTab.history')}</h3>
+                      {history.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">{t('overviewTab.noHistory')}</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {history.map((item) => (
+                            <li key={item.id} className="rounded-lg border border-border px-3 py-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] font-medium text-primary">
+                                  {item.kind === 'deal'
+                                    ? t('overviewTab.dealCreated')
+                                    : item.kind === 'stage'
+                                      ? t('overviewTab.dealStage')
+                                      : item.kind === 'status'
+                                        ? t('overviewTab.dealStatus')
+                                        : item.kind === 'tag'
+                                          ? t('overviewTab.tag')
+                                          : item.kind === 'note'
+                                            ? t('overviewTab.note')
+                                            : item.kind === 'taskDone'
+                                              ? t('overviewTab.taskDone')
+                                              : t('overviewTab.taskOpen')}
+                                </p>
+                                <p className="shrink-0 text-[10px] text-muted-foreground">
+                                  {new Date(item.at).toLocaleString('pt-BR', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </p>
+                              </div>
+                              {item.text ? (
+                                <p className="mt-0.5 text-sm text-foreground">
+                                  {item.kind === 'status' ? historyStatusText(item.text, tStatus) : item.text}
+                                </p>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  </div>
+                )}
+              </TabsContent>
 
               {/* Details Tab */}
               <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">
@@ -774,9 +1070,9 @@ export function ContactDetailView({
                         className="rounded-lg border border-border bg-muted/50 p-3"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium text-foreground">
+                          <Link href={`/pipelines/${deal.id}`} className="text-sm font-medium text-foreground hover:text-primary">
                             {deal.title}
-                          </p>
+                          </Link>
                           {deal.stage && (
                             <span
                               className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
@@ -797,17 +1093,23 @@ export function ContactDetailView({
                               deal.currency || defaultCurrency,
                             )}
                           </span>
-                          {deal.status && deal.status !== 'open' && (
-                            <span
-                              className={
-                                deal.status === 'won'
-                                  ? 'text-primary'
-                                  : 'text-red-400'
-                              }
-                            >
-                              {deal.status}
-                            </span>
-                          )}
+                          <span
+                            className={
+                              dealDisplayStatus(deal) === 'won'
+                                ? 'font-medium text-primary'
+                                : dealDisplayStatus(deal) === 'lost'
+                                  ? 'font-medium text-red-400'
+                                  : 'font-medium text-foreground'
+                            }
+                          >
+                            {dealDisplayStatus(deal) === 'won'
+                              ? tStatus('won')
+                              : dealDisplayStatus(deal) === 'lost'
+                                ? tStatus('lostFemale')
+                                : dealDisplayStatus(deal) === 'paused'
+                                  ? tStatus('paused')
+                                  : tStatus('open')}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -817,12 +1119,55 @@ export function ContactDetailView({
             </Tabs>
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+    </>
+  );
+
+  return (
+    <>
+    {asPage ? (
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-fit text-muted-foreground"
+          onClick={() => router.back()}
+        >
+          <ArrowLeft className="size-4" />
+          {t('back')}
+        </Button>
+        <div className="flex min-h-[70vh] flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground">
+          {!loading && !contact ? (
+            <p className="p-6 text-sm text-muted-foreground">{t('notFound')}</p>
+          ) : (
+            panel
+          )}
+        </div>
+      </div>
+    ) : (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="right"
+          className="bg-popover border-border text-popover-foreground sm:max-w-lg w-full p-0"
+        >
+          {panel}
+        </SheetContent>
+      </Sheet>
+    )}
     <TemplatePicker
       open={templatePickerOpen}
       onOpenChange={setTemplatePickerOpen}
       onSelect={handleSendTemplate}
+    />
+    <DealTaskForm
+      open={taskFormOpen}
+      onOpenChange={setTaskFormOpen}
+      deal={deals[0] ?? null}
+      deals={deals}
+      profiles={owners as Profile[]}
+      onSaved={() => {
+        fetchDeals();
+        fetchOverview();
+      }}
     />
     </>
   );
