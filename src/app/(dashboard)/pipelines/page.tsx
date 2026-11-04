@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal, DealTask, Profile } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
+import { DealList } from "@/components/pipelines/deal-list";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { DealDetailDialog } from "@/components/pipelines/deal-detail-dialog";
@@ -41,7 +42,9 @@ import {
   Building2,
   ChevronDown,
   Clock,
+  Columns3,
   Filter,
+  List,
   Handshake,
   ListTodo,
   UserPlus,
@@ -67,6 +70,9 @@ type StatusFilter = "all" | "open" | "won" | "lost" | "paused" | "not_paused";
 type SortFilter = "created_desc" | "created_asc" | "value_desc";
 
 const DEALS_PAGE_SIZE = 15;
+const LIST_PAGE_SIZE = 30;
+
+type BoardView = "kanban" | "list";
 
 function attachNextTasks(deals: Deal[], tasks: DealTask[]): Deal[] {
   const openByDeal = new Map<string, DealTask[]>();
@@ -117,6 +123,9 @@ function PipelinesPageInner() {
   const [taskDeal, setTaskDeal] = useState<Deal | null>(null);
   const [defaultStageId, setDefaultStageId] = useState<string>("");
 
+  const [view, setView] = useState<BoardView>("kanban");
+  const [kanbanStartToken, setKanbanStartToken] = useState(0);
+  const [listLimit, setListLimit] = useState(LIST_PAGE_SIZE);
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortFilter, setSortFilter] = useState<SortFilter>("created_desc");
@@ -495,10 +504,15 @@ function PipelinesPageInner() {
     return map;
   }, [visibleDeals, stages, pageLimit]);
 
-  const neededIds = useMemo(
-    () => [...cardWindows.values()].flatMap((w) => w.slice.map((d) => d.id)),
-    [cardWindows],
+  const listWindow = useMemo(
+    () => visibleDeals.slice(0, listLimit),
+    [visibleDeals, listLimit],
   );
+
+  const neededIds = useMemo(() => {
+    if (view === "list") return listWindow.map((deal) => deal.id);
+    return [...cardWindows.values()].flatMap((window) => window.slice.map((deal) => deal.id));
+  }, [view, listWindow, cardWindows]);
   const neededKey = neededIds.join(",");
 
   useEffect(() => {
@@ -526,6 +540,22 @@ function PipelinesPageInner() {
     // hydrateEpoch forces a reload after a save clears the cache.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [neededKey, hydrateEpoch, hydrateDeals]);
+
+  const listDeals = useMemo(() => {
+    const rich = new Map(richDeals.map((deal) => [deal.id, deal]));
+    let rows = listWindow.map((slim) => rich.get(slim.id) ?? slim);
+    if (filters.withoutTask || filters.nextTaskFrom) {
+      rows = rows.filter((deal) => {
+        if (!rich.has(deal.id)) return false;
+        if (filters.withoutTask && deal.next_task) return false;
+        if (filters.nextTaskFrom) {
+          return (deal.next_task?.due_at ?? "").slice(0, 10) >= filters.nextTaskFrom;
+        }
+        return true;
+      });
+    }
+    return rows;
+  }, [listWindow, richDeals, filters.withoutTask, filters.nextTaskFrom]);
 
   const boardDeals = useMemo(() => {
     const rich = new Map(richDeals.map((d) => [d.id, d]));
@@ -734,6 +764,39 @@ function PipelinesPageInner() {
             <Filter className="h-3.5 w-3.5" />
             {t("filtersCount", { count: activeFilterCount })}
           </Button>
+
+          <div
+            role="group"
+            aria-label={t("viewAs")}
+            className="ml-auto inline-flex items-center gap-0.5 rounded-lg border border-border bg-card p-0.5"
+          >
+            <button
+              type="button"
+              aria-pressed={view === "kanban"}
+              onClick={() => setView("kanban")}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm ${
+                view === "kanban"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Columns3 className="h-3.5 w-3.5" />
+              {t("viewKanban")}
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === "list"}
+              onClick={() => setView("list")}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm ${
+                view === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <List className="h-3.5 w-3.5" />
+              {t("viewList")}
+            </button>
+          </div>
         </div>
       )}
 
@@ -765,22 +828,35 @@ function PipelinesPageInner() {
       ) : (
         <>
           <PipelineAnalytics stages={stages} deals={visibleDeals} />
-          <PipelineBoard
-            stages={stages}
-            deals={boardDeals}
-            stageStats={cardWindows}
-            cardsLoading={cardsLoading}
-            onLoadMore={(stageId) =>
-              setPageLimit((prev) => ({
-                ...prev,
-                [stageId]: (prev[stageId] ?? DEALS_PAGE_SIZE) + DEALS_PAGE_SIZE,
-              }))
-            }
-            onDealMoved={handleDealMoved}
-            onAddDeal={handleAddDeal}
-            onEditDeal={handleOpenDeal}
-            onCreateTask={handleCreateTask}
-          />
+          {view === "list" ? (
+            <DealList
+              deals={listDeals}
+              stages={stages}
+              profiles={profiles}
+              loading={cardsLoading && listDeals.length === 0 && visibleDeals.length > 0}
+              hasMore={visibleDeals.length > listLimit}
+              onLoadMore={() => setListLimit((current) => current + LIST_PAGE_SIZE)}
+              onOpen={handleOpenDeal}
+            />
+          ) : (
+            <PipelineBoard
+              stages={stages}
+              deals={boardDeals}
+              stageStats={cardWindows}
+              cardsLoading={cardsLoading}
+              onLoadMore={(stageId) =>
+                setPageLimit((prev) => ({
+                  ...prev,
+                  [stageId]: (prev[stageId] ?? DEALS_PAGE_SIZE) + DEALS_PAGE_SIZE,
+                }))
+              }
+              onDealMoved={handleDealMoved}
+              onAddDeal={handleAddDeal}
+              onEditDeal={handleOpenDeal}
+              onCreateTask={handleCreateTask}
+              scrollToStartToken={kanbanStartToken}
+            />
+          )}
         </>
       )}
 
@@ -846,8 +922,9 @@ function PipelinesPageInner() {
         stages={stages}
         defaultStageId={defaultStageId}
         onSaved={refreshDeals}
-        onCreated={(saved) => {
-          if (saved.contact_id) openClientCard(saved.contact_id);
+        onCreated={() => {
+          setView("kanban");
+          setKanbanStartToken((current) => current + 1);
         }}
       />
 

@@ -7,13 +7,15 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AccountAccessAlert } from "@/components/layout/account-access-alert";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
+import { useTranslations } from "next-intl";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
 // client components can't export Next's metadata object.
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, profile, impersonator, stopImpersonating } = useAuth();
+  const t = useTranslations("Sidebar");
   const router = useRouter();
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
@@ -47,6 +49,22 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       <PresenceHeartbeat />
       <Sidebar open={sidebarOpen} onClose={closeSidebar} />
       <div className="flex flex-1 flex-col overflow-hidden">
+        {impersonator ? (
+          <div className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/15 px-4 py-2 text-sm text-foreground">
+            <span className="truncate">
+              {t("impersonateBanner", {
+                name: profile?.full_name || profile?.email || user.email || "",
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() => void stopImpersonating()}
+              className="shrink-0 font-medium underline underline-offset-2"
+            >
+              {t("impersonateBack")}
+            </button>
+          </div>
+        ) : null}
         <Header onOpenSidebar={() => setSidebarOpen(true)} />
         {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">

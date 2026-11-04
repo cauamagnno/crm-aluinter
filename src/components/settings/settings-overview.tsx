@@ -200,6 +200,11 @@ export function SettingsOverview({
       subtitle: 'BRL — Real',
     },
     {
+      section: 'goals',
+      loading: false,
+      subtitle: t('goalsHint'),
+    },
+    {
       section: 'fields',
       loading: countsLoading,
       subtitle:

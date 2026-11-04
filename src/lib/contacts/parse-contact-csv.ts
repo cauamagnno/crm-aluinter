@@ -57,11 +57,9 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
     };
   }
 
-  const headers = lines[0]
-    .split(',')
-    .map((h) => h.trim().toLowerCase().replace(/["']/g, ''));
+  const headers = lines[0].split(',').map(headerKey);
 
-  const phoneIdx = headers.indexOf('phone');
+  const phoneIdx = findHeader(headers, ['phone', 'telefone', 'celular', 'whatsapp']);
   if (phoneIdx === -1) {
     return {
       rows: [],
@@ -71,10 +69,15 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
     };
   }
 
-  const nameIdx = headers.indexOf('name');
-  const emailIdx = headers.indexOf('email');
-  const companyIdx = headers.indexOf('company');
-  const tagsIdx = headers.indexOf('tags');
+  const nameIdx = findHeader(headers, ['name', 'nome']);
+  const emailIdx = findHeader(headers, ['email', 'e-mail']);
+  const companyIdx = findHeader(headers, [
+    'company',
+    'empresa',
+    'razao social',
+    'razao_social',
+  ]);
+  const tagsIdx = findHeader(headers, ['tags', 'etiquetas']);
 
   const rows: ParsedContactRow[] = [];
 
@@ -111,6 +114,19 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
     hasTagsColumn: tagsIdx >= 0,
     hasCompanyColumn: companyIdx >= 0,
   };
+}
+
+function headerKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/["']/g, '');
+}
+
+function findHeader(headers: string[], names: string[]): number {
+  return headers.findIndex((header) => names.includes(header));
 }
 
 /** Simple CSV line parse (handles quoted fields). */

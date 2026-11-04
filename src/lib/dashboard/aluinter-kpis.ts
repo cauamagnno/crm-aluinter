@@ -7,14 +7,19 @@ import {
 } from './date-utils'
 import { periodDays, periodLastDay, type DashboardPeriod } from './period'
 import type { SellerFilter } from './seller'
+import {
+  DEFAULT_DASHBOARD_GOALS,
+  yellowMin,
+  type DashboardGoals,
+} from './goals'
 
 export const ALUINTER = {
-  conversationsPerDay: { target: 12, yellowMin: 8 },
-  quotesPerWeek: { target: 12, yellowMin: 9 },
+  conversationsPerDay: { target: DEFAULT_DASHBOARD_GOALS.conversationsPerDay, yellowMin: 8 },
+  quotesPerWeek: { target: DEFAULT_DASHBOARD_GOALS.quotesPerWeek, yellowMin: 9 },
   curveA: { target: 1, yellowMin: 0.8 },
   followUp: { target: 0.9, yellowMin: 0.7, windowDays: 7 },
-  revenuePerPortfolio: 400_000,
-  newReactivated: { target: 12, yellowMin: 8 },
+  revenuePerPortfolio: DEFAULT_DASHBOARD_GOALS.revenuePerMonth,
+  newReactivated: { target: DEFAULT_DASHBOARD_GOALS.newReactivatedPerMonth, yellowMin: 8 },
   reactivationDays: 90,
   retractionRatio: 0.7,
 } as const
@@ -137,6 +142,7 @@ export async function loadAluinterKpis(
   db: DB,
   period: DashboardPeriod,
   seller: SellerFilter = null,
+  goals: DashboardGoals = DEFAULT_DASHBOARD_GOALS,
 ): Promise<AluinterKpiSnapshot> {
   const asOf = periodLastDay(period)
   const days = periodDays(period)
@@ -348,13 +354,14 @@ export async function loadAluinterKpis(
   }
 
   const dim = daysInLocalMonth(asOf)
+  const monthlyRevenue = goals.revenuePerMonth
   const periodTarget =
     period.preset === 'month'
-      ? ALUINTER.revenuePerPortfolio
-      : ALUINTER.revenuePerPortfolio * (days / dim)
+      ? monthlyRevenue
+      : monthlyRevenue * (days / dim)
   const expected =
     period.preset === 'month'
-      ? ALUINTER.revenuePerPortfolio * (asOf.getDate() / dim)
+      ? monthlyRevenue * (asOf.getDate() / dim)
       : periodTarget
   const paceRatio =
     expected > 0 ? wonThisMonth / expected : wonThisMonth > 0 ? 1 : null
@@ -363,7 +370,8 @@ export async function loadAluinterKpis(
     new Set([...realByConsultant.keys(), ...quoteByConsultant.keys()]).size,
     1,
   )
-  const quoteTarget = ALUINTER.quotesPerWeek.target * (days / 7)
+  const quoteTarget = goals.quotesPerWeek * (days / 7)
+  const dailyTarget = goals.conversationsPerDay
   const dailyAvg = realToday / days / consultantCount
   const quoteAvg = quotesThisWeek / consultantCount
 
@@ -372,12 +380,12 @@ export async function loadAluinterKpis(
     realConversations: {
       today: realToday,
       average: dailyAvg,
-      dailyTarget: ALUINTER.conversationsPerDay.target,
+      dailyTarget,
       consultants: toSlices(
         realByConsultant,
         names,
-        ALUINTER.conversationsPerDay.target,
-        ALUINTER.conversationsPerDay.yellowMin,
+        dailyTarget,
+        yellowMin(dailyTarget, 8 / 15),
         days,
       ),
     },
@@ -389,7 +397,7 @@ export async function loadAluinterKpis(
         quoteByConsultant,
         names,
         quoteTarget,
-        ALUINTER.quotesPerWeek.yellowMin * (days / 7),
+        yellowMin(goals.quotesPerWeek, 9 / 12) * (days / 7),
       ),
     },
     curveA: {

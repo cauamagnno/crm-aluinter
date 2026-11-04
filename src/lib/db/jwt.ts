@@ -9,6 +9,8 @@ export interface JwtPayload {
   role: string;
   exp: number;
   iat: number;
+  /** Real account owner while this session is acting as someone else. */
+  imp?: { sub: string; email: string };
 }
 
 function authSecret(): string {
@@ -44,6 +46,7 @@ export async function signToken(input: {
   sub: string;
   email: string;
   role?: string;
+  imp?: { sub: string; email: string };
 }): Promise<{ token: string; payload: JwtPayload }> {
   const now = Math.floor(Date.now() / 1000);
   const payload: JwtPayload = {
@@ -52,6 +55,7 @@ export async function signToken(input: {
     role: input.role ?? "authenticated",
     iat: now,
     exp: now + TOKEN_TTL_SEC,
+    ...(input.imp ? { imp: input.imp } : {}),
   };
   const body = b64url(JSON.stringify(payload));
   const token = `${body}.${await hmac(body)}`;

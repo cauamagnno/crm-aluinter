@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
@@ -11,8 +11,10 @@ import { BrandLogo } from "@/components/brand-logo";
 import {
   Bell,
   Bot,
+  Building2,
   Crown,
   CheckSquare,
+  ChevronRight,
   GitBranch,
   LayoutDashboard,
   LogOut,
@@ -102,6 +104,7 @@ const navItems: NavItem[] = [
   { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
   { href: "/notifications", labelKey: "notifications", icon: Bell },
   { href: "/contacts", labelKey: "contacts", icon: Users },
+  { href: "/empresas", labelKey: "companies", icon: Building2 },
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   { href: "/tarefas", labelKey: "tasks", icon: CheckSquare },
   { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
@@ -121,11 +124,14 @@ interface SidebarProps {
 }
 
 import { useTranslations } from "next-intl";
+import { ImpersonateDialog } from "@/components/layout/impersonate-dialog";
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
-  const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const { profile, profileLoading, account, accountRole, isOwner, impersonator, signOut } = useAuth();
+  const [impersonateOpen, setImpersonateOpen] = useState(false);
+  const canSwitchUser = isOwner || !!impersonator;
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
   // Only surface the account-name strip when it actually carries
@@ -365,6 +371,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               sideOffset={6}
               className="min-w-56 bg-popover text-popover-foreground ring-border"
             >
+              {canSwitchUser ? (
+                <DropdownMenuItem
+                  onClick={() => setImpersonateOpen(true)}
+                  className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
+                >
+                  <Users className="size-4" />
+                  {t("impersonate")}
+                  <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem
                 render={
                   <Link
@@ -399,6 +415,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <ImpersonateDialog open={impersonateOpen} onOpenChange={setImpersonateOpen} />
         </div>
       </aside>
     </>

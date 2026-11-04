@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
       redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
     });
 
-    if (error) {
+    if (error){
       setError(error.message);
       setLoading(false);
       return;

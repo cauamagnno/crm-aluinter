@@ -21,6 +21,7 @@
     "inbox": "Caixa de entrada",
     "notifications": "Notificações",
     "contacts": "Contatos",
+    "companies": "Empresas",
     "pipelines": "Negociações",
     "tasks": "Tarefas",
     "broadcasts": "Disparos",
@@ -41,13 +42,22 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Perfil",
     "menuSettings": "Configurações",
-    "menuSignOut": "Sair"
+    "menuSignOut": "Sair",
+    "impersonate": "Acessar como...",
+    "impersonateTitle": "Acessar como",
+    "impersonateDesc": "Entre na conta de um usuário cadastrado. Você pode voltar para a sua conta a qualquer momento.",
+    "impersonateSearch": "Buscar nome ou e-mail",
+    "impersonateEmpty": "Nenhum usuário encontrado",
+    "impersonateFailed": "Não foi possível acessar essa conta",
+    "impersonateBanner": "Você está acessando como {name}",
+    "impersonateBack": "Voltar para a sua conta"
   },
   "Header": {
     "dashboard": "Painel",
     "inbox": "Caixa de entrada",
     "notifications": "Notificações",
     "contacts": "Contatos",
+    "companies": "Empresas",
     "pipelines": "Negociações",
     "tasks": "Tarefas",
     "broadcasts": "Disparos",
@@ -63,6 +73,37 @@
     "menuSignOut": "Sair",
     "soldThisMonth": "Eu vendi neste mês",
     "refreshSales": "Atualizar valor do mês"
+  },
+  "Empresas": {
+    "title": "Empresas",
+    "subtitle": "Gerencie sua lista de empresas. {count} no total.",
+    "subtitleZero": "Gerencie sua lista de empresas.",
+    "addContactBtn": "Adicionar empresa",
+    "loading": "Carregando empresas...",
+    "noMatch": "Nenhuma empresa corresponde aos filtros.",
+    "emptyYet": "Nenhuma empresa ainda.",
+    "addFirst": "Adicione a primeira empresa",
+    "deleteTitle": "Excluir empresa",
+    "deleteDesc": "Tem certeza de que deseja excluir {name}? Esta ação não pode ser desfeita.",
+    "deleteBulkTitle": "Excluir empresas",
+    "deleteBulkDesc": "Tem certeza de que deseja excluir {count} empresas selecionadas? Esta ação não pode ser desfeita.",
+    "toastFailedLoad": "Falha ao carregar empresas",
+    "toastFailedDelete": "Falha ao excluir empresa",
+    "toastDeleted": "Empresa excluída",
+    "toastBulkFailedDelete": "Falha ao excluir empresas",
+    "toastBulkDeleted": "{count} empresas excluídas",
+    "search": "Buscar empresa, telefone ou e-mail",
+    "add": "Adicionar",
+    "import": "Importar",
+    "importTitle": "Importar empresas",
+    "importDesc": "CSV separado por vírgula. Colunas: empresa (ou company) e telefone (ou phone). Opcionais: email, nome, tags.",
+    "importNeedCompany": "O CSV precisa das colunas empresa e telefone, com pelo menos uma empresa preenchida.",
+    "importBtn": "{count, plural, =0 {Importar} =1 {Importar 1 empresa} other {Importar # empresas}}",
+    "empty": "Nenhuma empresa encontrada",
+    "colCompany": "Empresa",
+    "colPhone": "Telefone",
+    "colEmail": "E-mail",
+    "colOwner": "Responsável"
   },
   "Tasks": {
     "title": "Tarefas",
@@ -201,7 +242,8 @@
       "thisYear": "Este ano",
       "custom": "Intervalo",
       "from": "De",
-      "to": "Até"
+      "to": "Até",
+      "day": "Dia"
     },
     "sales": {
       "title": "Vendas no período",
@@ -232,7 +274,8 @@
       "loadError": "Não deu para carregar as tarefas do período.",
       "call": "Ligações",
       "whatsapp": "WhatsApp",
-      "email": "E-mails"
+      "email": "E-mails",
+      "dailyTarget": "Meta: {target} por dia"
     },
     "operacao": {
       "newContacts": "Novos contatos",
@@ -273,15 +316,15 @@
       },
       "k1": {
         "title": "Conversas reais",
-        "target": "Meta: 12 por dia, por consultor",
-        "targetAvg": "Média {avg}/dia · meta 12",
+        "target": "Meta: {target} por dia, por consultor",
+        "targetAvg": "Média {avg}/dia · meta {target}",
         "formula": "Conversas de WhatsApp com ida e volta (cliente + consultor) no dia, por consultor.",
         "frequency": "Diária, lida no D&D do dia seguinte",
         "hint": "No playbook isso é ligação com o decisor no bloco Fecha o dia. Aqui usamos conversa real de WhatsApp até existir registro de ligação."
       },
       "k2": {
         "title": "Orçamentos enviados",
-        "target": "Meta: 12 por semana, por consultor",
+        "target": "Meta: {target} por semana, por consultor",
         "targetPeriod": "Meta no período: {target}",
         "formula": "Negócios criados no funil nesta semana.",
         "frequency": "Semanal, lida no alinhamento de segunda",
@@ -289,7 +332,7 @@
       },
       "k3": {
         "title": "Cobertura de Curva A",
-        "target": "Meta: 100% da Curva A tocada toda semana",
+        "target": "Meta: {target}% da Curva A tocada toda semana",
         "formula": "Clientes Curva A com toque na semana ÷ total de Curva A na carteira.",
         "frequency": "Semanal",
         "hintEmpty": "Marque os clientes com a tag “Curva A” em Contatos. Sem essa classificação (Capítulo 16), o KPI fica vazio.",
@@ -297,7 +340,7 @@
       },
       "k4": {
         "title": "Aderência à cadência de follow-up",
-        "target": "Meta: 90% ou mais",
+        "target": "Meta: {target}% ou mais",
         "formula": "Negócios abertos com toque nos últimos 7 dias ÷ negócios abertos.",
         "frequency": "Semanal",
         "hint": "{onCadence} de {open} negócios abertos tiveram toque na cadência (mensagem no CRM ou atualização do negócio)."
@@ -311,7 +354,7 @@
       },
       "k6": {
         "title": "Novos e reativados no mês",
-        "target": "Meta: 12 a 13 por consultor, 125 no time",
+        "target": "Meta: {target} por consultor no mês",
         "formula": "Primeira vitória no mês + clientes sem vitória há 90 dias que voltaram a ganhar.",
         "frequency": "Semanal",
         "hint": "{novos} novos e {reactivated} reativados pelos negócios ganhos no CRM. A régua oficial de 90 dias é a compra no Easy."
@@ -801,7 +844,21 @@
       "sortCreatedAsc": "Mais antigas",
       "sortValueDesc": "Maior valor",
       "filters": "Filtros",
-      "filtersCount": "Filtros ({count})"
+      "filtersCount": "Filtros ({count})",
+      "viewAs": "Visualizar como",
+      "viewKanban": "Kanban",
+      "viewList": "Lista"
+    },
+    "list": {
+      "empty": "Nenhuma negociação com esses filtros",
+      "loadMore": "Carregar mais",
+      "colDeal": "Negociação",
+      "colCompany": "Empresa",
+      "colStage": "Etapa",
+      "colStatus": "Status",
+      "colOwner": "Responsável",
+      "colValue": "Valor",
+      "colNextTask": "Próxima tarefa"
     },
     "status": {
       "heading": "Status da negociação",
@@ -1617,7 +1674,8 @@
       "fieldsCount": "{count} {count, plural, =1 {campo personalizado} other {campos personalizados}}",
       "appearance": "Modo {mode} · destaque {theme}",
       "yourAccount": "Sua conta",
-      "loading": "Carregando…"
+      "loading": "Carregando…",
+      "goalsHint": "Metas diárias, semanais e mensais do painel"
     },
     "members": {
       "title": "Membros da equipe",
@@ -1903,6 +1961,7 @@
       "quick-replies": "Respostas rápidas",
       "fields": "Campos e tags",
       "deals": "Negócios",
+      "goals": "Metas",
       "members": "Equipe",
       "api": "Chaves de API"
     },
@@ -2028,6 +2087,29 @@
       "saving": "Salvando...",
       "saveFailed": "Falha ao salvar a moeda padrão",
       "saveSuccess": "Moeda padrão atualizada"
+    },
+    "goals": {
+      "title": "Metas",
+      "description": "Esses números alimentam o painel de Gestão: conversas, ligações, orçamentos e faturamento.",
+      "dailyTitle": "Metas por dia",
+      "dailyHint": "Quantidade esperada de cada consultor em um dia útil.",
+      "otherTitle": "Metas da carteira",
+      "otherHint": "Semana, mês e percentual dos demais indicadores.",
+      "conversationsPerDay": "Conversas reais por dia",
+      "callsPerDay": "Ligações por dia",
+      "whatsappPerDay": "WhatsApp por dia",
+      "emailsPerDay": "E-mails por dia",
+      "quotesPerWeek": "Orçamentos por semana",
+      "newReactivatedPerMonth": "Novos e reativados por mês",
+      "curveAPct": "Cobertura de Curva A (%)",
+      "followUpPct": "Aderência de follow-up (%)",
+      "revenuePerMonth": "Faturamento da carteira por mês (R$)",
+      "revenueHint": "Meta mensal usada no indicador de faturamento do painel.",
+      "save": "Salvar metas",
+      "saving": "Salvando...",
+      "saveFailed": "Falha ao salvar as metas",
+      "saveSuccess": "Metas atualizadas",
+      "readOnly": "Somente gestor, admin ou dono podem alterar as metas."
     },
     "quickReplies": {
       "title": "Respostas rápidas",

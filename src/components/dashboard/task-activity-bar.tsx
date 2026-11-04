@@ -5,16 +5,22 @@ import { Mail, MessageCircle, Phone } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { periodInputValues, type DashboardPeriod } from "@/lib/dashboard/period";
 import type { TaskActivity } from "@/lib/dashboard/task-activity";
+import {
+  DEFAULT_DASHBOARD_GOALS,
+  type DashboardGoals,
+} from "@/lib/dashboard/goals";
 import { SkeletonCard } from "@/components/dashboard/skeleton";
 
 export function TaskActivityBar({
   activity,
   loading,
   period,
+  goals = DEFAULT_DASHBOARD_GOALS,
 }: {
   activity: TaskActivity | null;
   loading: boolean;
   period: DashboardPeriod;
+  goals?: DashboardGoals;
 }) {
   const t = useTranslations("Dashboard.tasks");
   const { from, to } = periodInputValues(period);
@@ -32,9 +38,9 @@ export function TaskActivityBar({
   }
 
   const items = [
-    { key: "ligacao" as const, label: t("call"), value: activity.ligacao, icon: Phone },
-    { key: "whatsapp" as const, label: t("whatsapp"), value: activity.whatsapp, icon: MessageCircle },
-    { key: "email" as const, label: t("email"), value: activity.email, icon: Mail },
+    { key: "ligacao" as const, label: t("call"), value: activity.ligacao, icon: Phone, target: goals.callsPerDay },
+    { key: "whatsapp" as const, label: t("whatsapp"), value: activity.whatsapp, icon: MessageCircle, target: goals.whatsappPerDay },
+    { key: "email" as const, label: t("email"), value: activity.email, icon: Mail, target: goals.emailsPerDay },
   ];
 
   return (
@@ -57,6 +63,9 @@ export function TaskActivityBar({
                 <p className="text-[11px] text-muted-foreground">{item.label}</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
                   {item.value.toLocaleString("pt-BR")}
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {t("dailyTarget", { target: item.target })}
                 </p>
               </div>
               <Icon className="h-5 w-5 text-muted-foreground" aria-hidden />

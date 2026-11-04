@@ -7,6 +7,7 @@ import {
   PlugZap,
   Shield,
   Tags,
+  Target,
   User,
   UsersRound,
   Zap,
@@ -31,6 +32,7 @@ export const SETTINGS_SECTIONS = [
   'quick-replies',
   'fields',
   'deals',
+  'goals',
   'members',
   'api',
 ] as const;
@@ -57,6 +59,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   'quick-replies': { id: 'quick-replies', label: 'Respostas rápidas', icon: Zap, group: 'workspace' },
   fields: { id: 'fields', label: 'Campos e tags', icon: Tags, group: 'workspace' },
   deals: { id: 'deals', label: 'Negócios', icon: Coins, group: 'workspace' },
+  goals: { id: 'goals', label: 'Metas', icon: Target, group: 'workspace' },
   members: { id: 'members', label: 'Equipe', icon: UsersRound, group: 'workspace' },
   api: { id: 'api', label: 'Chaves de API', icon: KeyRound, group: 'workspace' },
 };

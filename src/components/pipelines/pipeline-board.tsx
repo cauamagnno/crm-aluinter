@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -38,6 +38,8 @@ interface PipelineBoardProps {
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
   onCreateTask: (deal: Deal) => void;
+  /** Increments after a deal is created so the board returns to the first column. */
+  scrollToStartToken?: number;
 }
 
 export function PipelineBoard({
@@ -50,9 +52,21 @@ export function PipelineBoard({
   onAddDeal,
   onEditDeal,
   onCreateTask,
+  scrollToStartToken = 0,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!scrollToStartToken) return;
+    const node = scrollerRef.current;
+    if (!node) return;
+    const scroll = () => node.scrollTo({ left: 0 });
+    scroll();
+    const frame = requestAnimationFrame(scroll);
+    return () => cancelAnimationFrame(frame);
+  }, [scrollToStartToken]);
 
   const sortedStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
@@ -108,7 +122,10 @@ export function PipelineBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none">
+      <div
+        ref={scrollerRef}
+        className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none"
+      >
         {sortedStages.map((stage) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
           const stats = stageStats.get(stage.id);

@@ -13,12 +13,16 @@ import {
 import { useTranslations } from 'next-intl'
 import { formatCurrency } from '@/lib/currency'
 import {
-  ALUINTER,
   ragHigherIsBetter,
   ragPace,
   type AluinterKpiSnapshot,
   type RagStatus,
 } from '@/lib/dashboard/aluinter-kpis'
+import {
+  DEFAULT_DASHBOARD_GOALS,
+  yellowMin,
+  type DashboardGoals,
+} from '@/lib/dashboard/goals'
 import { KpiRagCard, RagDot } from '@/components/dashboard/kpi-rag-card'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
 
@@ -35,10 +39,12 @@ export function GestaoPanel({
   data,
   loading,
   currency,
+  goals = DEFAULT_DASHBOARD_GOALS,
 }: {
   data: AluinterKpiSnapshot | null
   loading: boolean
   currency: string
+  goals?: DashboardGoals
 }) {
   const t = useTranslations('Dashboard.gestao')
 
@@ -60,10 +66,12 @@ export function GestaoPanel({
     )
   }
 
+  const curveTarget = goals.curveAPct / 100
+  const followTarget = goals.followUpPct / 100
   const convRag = ragHigherIsBetter(
     data.realConversations.average,
     data.realConversations.dailyTarget,
-    ALUINTER.conversationsPerDay.yellowMin,
+    yellowMin(data.realConversations.dailyTarget, 8 / 15),
   )
   const quoteRag = ragHigherIsBetter(
     data.quotes.thisWeek,
@@ -72,24 +80,16 @@ export function GestaoPanel({
   )
   const curveRag = data.curveA.ratio == null
     ? 'na'
-    : ragHigherIsBetter(
-        data.curveA.ratio,
-        ALUINTER.curveA.target,
-        ALUINTER.curveA.yellowMin,
-      )
+    : ragHigherIsBetter(data.curveA.ratio, curveTarget, yellowMin(curveTarget, 0.8))
   const followRag = data.followUp.ratio == null
     ? 'na'
-    : ragHigherIsBetter(
-        data.followUp.ratio,
-        ALUINTER.followUp.target,
-        ALUINTER.followUp.yellowMin,
-      )
+    : ragHigherIsBetter(data.followUp.ratio, followTarget, yellowMin(followTarget, 0.7 / 0.9))
   const revenueRag = ragPace(data.revenue.paceRatio)
-  const newTarget = ALUINTER.newReactivated.target * (data.periodDays / 30)
+  const newTarget = goals.newReactivatedPerMonth * (data.periodDays / 30)
   const newRag = ragHigherIsBetter(
     data.newReactivated.total,
     Math.max(newTarget, 1),
-    Math.max(ALUINTER.newReactivated.yellowMin * (data.periodDays / 30), 1),
+    Math.max(yellowMin(goals.newReactivatedPerMonth, 8 / 12) * (data.periodDays / 30), 1),
   )
   const retractionRag =
     data.retraction.shrinking === 0
@@ -147,6 +147,7 @@ export function GestaoPanel({
               avg: data.realConversations.average.toLocaleString(undefined, {
                 maximumFractionDigits: 1,
               }),
+              target: data.realConversations.dailyTarget,
             })}
             rag={convRag}
             ragLabel={ragLabel(t, convRag)}
@@ -187,7 +188,7 @@ export function GestaoPanel({
             index={3}
             title={t('k3.title')}
             value={pct(data.curveA.ratio)}
-            target={t('k3.target')}
+            target={t('k3.target', { target: Math.round(goals.curveAPct) })}
             rag={curveRag}
             ragLabel={ragLabel(t, curveRag)}
             origin="crm"
@@ -210,7 +211,7 @@ export function GestaoPanel({
             index={4}
             title={t('k4.title')}
             value={pct(data.followUp.ratio)}
-            target={t('k4.target')}
+            target={t('k4.target', { target: Math.round(goals.followUpPct) })}
             rag={followRag}
             ragLabel={ragLabel(t, followRag)}
             origin="crm"
@@ -256,7 +257,7 @@ export function GestaoPanel({
             index={6}
             title={t('k6.title')}
             value={data.newReactivated.total.toLocaleString()}
-            target={t('k6.target')}
+            target={t('k6.target', { target: goals.newReactivatedPerMonth })}
             rag={newRag}
             ragLabel={ragLabel(t, newRag)}
             origin="proxy"

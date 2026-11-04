@@ -64,8 +64,14 @@ interface ContactWithTags extends Contact {
   tags?: Tag[];
 }
 
-export default function ContactsPage() {
+export function ContactsDirectory({
+  mode = 'contacts',
+}: {
+  mode?: 'contacts' | 'companies';
+}) {
+  const companies = mode === 'companies';
   const t = useTranslations('Contacts.page');
+  const tc = useTranslations('Empresas');
   const supabase = createClient();
   const canEdit = useCan('send-messages');
   const canDelete = useCan('delete-records');
@@ -150,12 +156,13 @@ export default function ContactsPage() {
       });
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
       if (error) {
-        toast.error(t('toastFailedLoad'));
+        toast.error(companies ? tc('toastFailedLoad') : t('toastFailedLoad'));
         setLoading(false);
         return;
       }
       const rows = (data ?? []) as { contact: Contact; total_count: number }[];
       contactRows = rows.map((r) => r.contact);
+      if (companies) contactRows = contactRows.filter((row) => row.company?.trim());
       count = rows.length > 0 ? Number(rows[0].total_count) : 0;
     } else {
       let query = supabase
@@ -164,15 +171,23 @@ export default function ContactsPage() {
         .order('created_at', { ascending: false })
         .range(from, to);
 
+      if (companies) {
+        query = query.not('company', 'is', null).neq('company', '');
+      }
+
       if (term) {
         const like = `%${term}%`;
-        query = query.or(`name.ilike.${like},phone.ilike.${like},email.ilike.${like}`);
+        query = query.or(
+          companies
+            ? `company.ilike.${like},name.ilike.${like},phone.ilike.${like},email.ilike.${like}`
+            : `name.ilike.${like},phone.ilike.${like},email.ilike.${like}`,
+        );
       }
 
       const { data, count: exactCount, error } = await query;
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
       if (error) {
-        toast.error(t('toastFailedLoad'));
+        toast.error(companies ? tc('toastFailedLoad') : t('toastFailedLoad'));
         setLoading(false);
         return;
       }
@@ -211,7 +226,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, selectedTagIds, tagsMap, t]);
+  }, [companies, supabase, page, search, selectedTagIds, tagsMap, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -273,9 +288,9 @@ export default function ContactsPage() {
       .eq('id', deleteTarget.id);
 
     if (error) {
-      toast.error(t('toastFailedDelete'));
+      toast.error(companies ? tc('toastFailedDelete') : t('toastFailedDelete'));
     } else {
-      toast.success(t('toastDeleted'));
+      toast.success(companies ? tc('toastDeleted') : t('toastDeleted'));
       fetchContacts();
     }
 
@@ -317,9 +332,13 @@ export default function ContactsPage() {
     const { error } = await supabase.from('contacts').delete().in('id', ids);
 
     if (error) {
-      toast.error(t('toastBulkFailedDelete'));
+      toast.error(companies ? tc('toastBulkFailedDelete') : t('toastBulkFailedDelete'));
     } else {
-      toast.success(t('toastBulkDeleted', { count: ids.length }));
+      toast.success(
+        companies
+          ? tc('toastBulkDeleted', { count: ids.length })
+          : t('toastBulkDeleted', { count: ids.length }),
+      );
       setSelected(new Set());
       fetchContacts();
     }
@@ -358,9 +377,17 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {companies ? tc('title') : t('title')}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {totalCount > 0 ? t('subtitle', { count: totalCount }) : t('subtitleZero')}
+            {totalCount > 0
+              ? companies
+                ? tc('subtitle', { count: totalCount })
+                : t('subtitle', { count: totalCount })
+              : companies
+                ? tc('subtitleZero')
+                : t('subtitleZero')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -391,7 +418,7 @@ export default function ContactsPage() {
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="size-4" />
-            {t('addContactBtn')}
+            {companies ? tc('addContactBtn') : t('addContactBtn')}
           </GatedButton>
         </div>
       </div>
@@ -571,7 +598,9 @@ export default function ContactsPage() {
                 <TableCell colSpan={9} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="size-6 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">{t('loading')}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {companies ? tc('loading') : t('loading')}
+                    </p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -582,8 +611,8 @@ export default function ContactsPage() {
                     <Users className="size-8 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">
                       {hasActiveFilters
-                        ? t('noContactsMatch')
-                        : t('noContactsYet')}
+                        ? (companies ? tc('noMatch') : t('noContactsMatch'))
+                        : (companies ? tc('emptyYet') : t('noContactsYet'))}
                     </p>
                     {!hasActiveFilters && (
                       <GatedButton
@@ -595,7 +624,7 @@ export default function ContactsPage() {
                         className="mt-2 border-border text-muted-foreground hover:bg-muted"
                       >
                         <Plus className="size-3.5" />
-                        {t('addFirstContact')}
+                        {companies ? tc('addFirst') : t('addFirstContact')}
                       </GatedButton>
                     )}
                   </div>
@@ -616,7 +645,9 @@ export default function ContactsPage() {
                     />
                   </TableCell>
                   <TableCell className="text-foreground font-medium">
-                    {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
+                    {(companies ? contact.company || contact.name : contact.name) || (
+                      <span className="text-muted-foreground italic">{t('unnamed')}</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground font-mono text-xs">
                     {contact.phone}
@@ -757,6 +788,7 @@ export default function ContactsPage() {
         onOpenChange={setFormOpen}
         contact={editContact}
         contactTags={editContactTags}
+        intent={companies ? 'company' : 'contact'}
         onSaved={() => {
           fetchContacts();
           fetchTags();
@@ -779,6 +811,7 @@ export default function ContactsPage() {
       <ImportModal
         open={importOpen}
         onOpenChange={setImportOpen}
+        companiesOnly={companies}
         onImported={fetchContacts}
       />
 
@@ -794,9 +827,17 @@ export default function ContactsPage() {
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="bg-popover border-border text-popover-foreground sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-popover-foreground">{t('deleteContactTitle')}</DialogTitle>
+            <DialogTitle className="text-popover-foreground">
+              {companies ? tc('deleteTitle') : t('deleteContactTitle')}
+            </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              {t('deleteContactDesc', { name: deleteTarget?.name || deleteTarget?.phone || '' })}
+              {companies
+                ? tc('deleteDesc', {
+                    name: deleteTarget?.company || deleteTarget?.name || deleteTarget?.phone || '',
+                  })
+                : t('deleteContactDesc', {
+                    name: deleteTarget?.name || deleteTarget?.phone || '',
+                  })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="bg-popover border-border">
@@ -824,10 +865,12 @@ export default function ContactsPage() {
         <DialogContent className="bg-popover border-border text-popover-foreground sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-popover-foreground">
-              {t('deleteBulkTitle')}
+              {companies ? tc('deleteBulkTitle') : t('deleteBulkTitle')}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              {t('deleteBulkDesc', { count: selected.size })}
+              {companies
+                ? tc('deleteBulkDesc', { count: selected.size })
+                : t('deleteBulkDesc', { count: selected.size })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="bg-popover border-border">
@@ -851,4 +894,8 @@ export default function ContactsPage() {
       </Dialog>
     </div>
   );
+}
+
+export default function ContactsPage() {
+  return <ContactsDirectory mode="contacts" />;
 }

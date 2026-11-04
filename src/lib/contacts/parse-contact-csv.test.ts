@@ -25,6 +25,23 @@ describe('parseTagCell', () => {
 });
 
 describe('parseContactCsv', () => {
+  it('accepts Portuguese company headers', () => {
+    const csv = `empresa,telefone,email
+Aluinter,11999990000,contato@aluinter.com
+`;
+    expect(parseContactCsv(csv)).toMatchObject({
+      hasPhoneColumn: true,
+      hasCompanyColumn: true,
+      rows: [
+        {
+          phone: '11999990000',
+          company: 'Aluinter',
+          email: 'contato@aluinter.com',
+        },
+      ],
+    });
+  });
+
   it('parses optional tags column', () => {
     const csv = `phone,name,tags
 +15551234567,Alice,"VIP, Lead"

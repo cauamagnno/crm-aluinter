@@ -83,6 +83,12 @@ interface AuthContextValue {
    */
   profileLoading: boolean;
   signOut: () => Promise<void>;
+  /** Owner who started this session, when viewing the app as someone else. */
+  impersonator: { id: string; email: string } | null;
+  /** Enter another registered user's session. Owner only. */
+  impersonate: (userId: string) => Promise<void>;
+  /** Return to the owner's own session. */
+  stopImpersonating: () => Promise<void>;
   /** Re-fetch the current user's profile row — call after a save from
    *  the settings form so header/sidebar reflect the change without a
    *  full page reload. */
@@ -380,6 +386,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [fetchProfile]);
 
+  const impersonator = useMemo(() => {
+    const id = user?.app_metadata?.impersonator_id;
+    const email = user?.app_metadata?.impersonator_email;
+    if (typeof id === "string" && typeof email === "string") return { id, email };
+    return null;
+  }, [user]);
+
+  const impersonate = useCallback(async (userId: string) => {
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ action: "impersonate", userId }),
+    });
+    const json = (await res.json()) as { error?: { message?: string } | null };
+    if (!res.ok || json.error) {
+      throw new Error(json.error?.message || "Não foi possível acessar essa conta");
+    }
+    window.location.assign("/dashboard");
+  }, []);
+
+  const stopImpersonating = useCallback(async () => {
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ action: "stop-impersonate" }),
+    });
+    const json = (await res.json()) as { error?: { message?: string } | null };
+    if (!res.ok || json.error) {
+      throw new Error(json.error?.message || "Não foi possível voltar para a sua conta");
+    }
+    window.location.assign("/dashboard");
+  }, []);
+
   const signOut = useCallback(async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -433,6 +474,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         profileLoading,
         signOut,
+        impersonator,
+        impersonate,
+        stopImpersonating,
         refreshProfile,
         account,
         defaultCurrency: DEFAULT_CURRENCY,
@@ -465,6 +509,9 @@ export function useAuth(): AuthContextValue {
       signOut: async () => {
         window.location.href = "/login";
       },
+      impersonator: null,
+      impersonate: async () => {},
+      stopImpersonating: async () => {},
       refreshProfile: async () => {},
       account: null,
       defaultCurrency: DEFAULT_CURRENCY,

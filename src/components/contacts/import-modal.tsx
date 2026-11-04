@@ -119,14 +119,18 @@ interface ImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImported: () => void;
+  /** Keep only rows that include a company name. */
+  companiesOnly?: boolean;
 }
 
 export function ImportModal({
   open,
   onOpenChange,
   onImported,
+  companiesOnly = false,
 }: ImportModalProps) {
   const t = useTranslations('Contacts.importModal');
+  const companyCopy = useTranslations('Empresas');
   const supabase = createClient();
   const { accountId, canEditSettings } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -175,8 +179,12 @@ export function ImportModal({
       hasCompanyColumn: csvHasCompany,
     } = parseContactCsv(text);
 
-    if (rows.length === 0) {
-      toast.error(t('toastNoValidRows'));
+    const companyRows = companiesOnly
+      ? rows.filter((row) => row.company?.trim())
+      : rows;
+
+    if (rows.length === 0 || (companiesOnly && (!csvHasCompany || companyRows.length === 0))) {
+      toast.error(companiesOnly ? companyCopy('importNeedCompany') : t('toastNoValidRows'));
       setParsedRows([]);
       setHasTagsColumn(false);
       setHasCompanyColumn(false);
@@ -184,7 +192,7 @@ export function ImportModal({
       return;
     }
 
-    setParsedRows(rows);
+    setParsedRows(companyRows);
     setHasTagsColumn(csvHasTags);
     setHasCompanyColumn(csvHasCompany);
 
@@ -275,7 +283,7 @@ export function ImportModal({
           user_id: user.id,
           account_id: accountId,
           phone: row.phone,
-          name: row.name || null,
+          name: row.name || (companiesOnly ? row.company : null) || null,
           email: row.email || null,
           company: row.company || null,
         }));
@@ -396,8 +404,13 @@ export function ImportModal({
         <div className="shrink-0 space-y-4 border-b border-border/80 px-6 pt-6 pb-5">
           <DialogHeader className="gap-1.5">
             <DialogTitle className="text-lg text-popover-foreground">
-              {t('title')}
+              {companiesOnly ? companyCopy('importTitle') : t('title')}
             </DialogTitle>
+            {companiesOnly ? (
+              <DialogDescription className="leading-relaxed text-muted-foreground">
+                {companyCopy('importDesc')}
+              </DialogDescription>
+            ) : (
             <DialogDescription className="leading-relaxed text-muted-foreground"
               dangerouslySetInnerHTML={{
                 __html: t.markup('desc', {
@@ -409,6 +422,7 @@ export function ImportModal({
                 })
               }}
             />
+            )}
           </DialogHeader>
 
           <div
@@ -614,7 +628,9 @@ export function ImportModal({
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {importing && <Loader2 className="size-4 animate-spin" />}
-              {parsedRows.length > 0 ? t('importBtn', { count: parsedRows.length }) : t('importBtn', { count: 0 })}
+              {companiesOnly
+                ? companyCopy('importBtn', { count: parsedRows.length })
+                : t('importBtn', { count: parsedRows.length })}
             </Button>
           )}
         </DialogFooter>

@@ -13,9 +13,21 @@ import {
   loadResponseTime,
 } from '@/lib/dashboard/queries'
 import { loadAluinterKpis, type AluinterKpiSnapshot } from '@/lib/dashboard/aluinter-kpis'
+import {
+  DEFAULT_DASHBOARD_GOALS,
+  parseDashboardGoals,
+  type DashboardGoals,
+} from '@/lib/dashboard/goals'
 import { loadSalesReport, type SalesReport } from '@/lib/dashboard/sales-report'
 import { loadTaskActivity, type TaskActivity } from '@/lib/dashboard/task-activity'
-import { periodLastDay, periodToday, type DashboardPeriod } from '@/lib/dashboard/period'
+import {
+  periodFromInputs,
+  periodInputValues,
+  periodLastDay,
+  periodToday,
+  type DashboardPeriod,
+} from '@/lib/dashboard/period'
+import { toDateInputValue } from '@/lib/dashboard/date-utils'
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
@@ -41,7 +53,9 @@ type DashTab = 'gestao' | 'operacao' | 'marketing'
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
   const tTabs = useTranslations('Dashboard.tabs')
-  const { defaultCurrency } = useAuth()
+  const tPeriod = useTranslations('Dashboard.period')
+  const { defaultCurrency, accountId } = useAuth()
+  const [goals, setGoals] = useState<DashboardGoals>(DEFAULT_DASHBOARD_GOALS)
   const [tab, setTab] = useState<DashTab>('gestao')
   const [period, setPeriod] = useState<DashboardPeriod>(() => periodToday())
   const [sellerId, setSellerId] = useState('all')
@@ -71,7 +85,7 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<ActivityItem[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(true)
 
-  const loadAll = useCallback((range: DashboardPeriod, seller: SellerFilter) => {
+  const loadAll = useCallback((range: DashboardPeriod, seller: SellerFilter, targets: DashboardGoals) => {
     const db = createClient()
     const asOf = periodLastDay(range)
 
@@ -94,7 +108,7 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] task activity failed:', err))
       .finally(() => setTasksLoading(false))
 
-    void loadAluinterKpis(db, range, seller)
+    void loadAluinterKpis(db, range, seller, targets)
       .then((k) => setKpis(k))
       .catch((err) => console.error('[dashboard] aluinter kpis failed:', err))
       .finally(() => setKpisLoading(false))
@@ -124,6 +138,17 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] activity failed:', err))
       .finally(() => setActivityLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!accountId) return
+    const db = createClient()
+    void db
+      .from('account_dashboard_goals')
+      .select('*')
+      .eq('account_id', accountId)
+      .maybeSingle()
+      .then(({ data }) => setGoals(parseDashboardGoals(data)))
+  }, [accountId])
 
   useEffect(() => {
     const db = createClient()
@@ -157,8 +182,8 @@ export default function DashboardPage() {
   }, [sellerId, sellers])
 
   useEffect(() => {
-    loadAll(period, sellerFilter)
-  }, [loadAll, period, sellerFilter])
+    loadAll(period, sellerFilter, goals)
+  }, [loadAll, period, sellerFilter, goals])
 
   return (
     <div className="space-y-5">
@@ -201,14 +226,45 @@ export default function DashboardPage() {
         </TabsList>
 
         <TabsContent value="gestao" className="mt-5 space-y-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <SellerPicker
+              sellerId={sellerId}
+              sellers={sellers}
+              onChange={setSellerId}
+            />
+            <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-sm text-foreground">
+              <span className="text-xs text-muted-foreground">{tPeriod('day')}</span>
+              <input
+                type="date"
+                aria-label={tPeriod('day')}
+                value={periodInputValues(period).from}
+                max={toDateInputValue(new Date())}
+                onChange={(e) => {
+                  if (!e.target.value) return
+                  setPeriod(periodFromInputs('custom', e.target.value, e.target.value))
+                }}
+                className="bg-transparent text-sm outline-none"
+              />
+            </label>
+          </div>
           <SalesReportBar
             report={sales}
             loading={salesLoading}
             period={period}
             currency={defaultCurrency}
           />
-          <TaskActivityBar activity={tasks} loading={tasksLoading} period={period} />
-          <GestaoPanel data={kpis} loading={kpisLoading} currency={defaultCurrency} />
+          <TaskActivityBar
+            activity={tasks}
+            loading={tasksLoading}
+            period={period}
+            goals={goals}
+          />
+          <GestaoPanel
+            data={kpis}
+            loading={kpisLoading}
+            currency={defaultCurrency}
+            goals={goals}
+          />
         </TabsContent>
 
         <TabsContent value="operacao" className="mt-5">

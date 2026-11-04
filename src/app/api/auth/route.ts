@@ -1,12 +1,22 @@
 import { NextResponse } from "next/server";
 
 import { hashInviteToken } from "@/lib/auth/invitations";
-import { createServerAuth } from "@/lib/db/auth-server";
+import {
+  createServerAuth,
+  listImpersonationTargets,
+  startImpersonation,
+  stopImpersonation,
+} from "@/lib/db/auth-server";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const action = new URL(request.url).searchParams.get("action");
+  if (action === "impersonation-users") {
+    const result = await listImpersonationTargets();
+    return NextResponse.json(result, { status: result.error?.status ?? 200 });
+  }
   const auth = createServerAuth();
   const { data, error } = await auth.getSession();
   return NextResponse.json({
@@ -23,6 +33,7 @@ export async function POST(request: Request) {
     email?: string;
     password?: string;
     invite?: string;
+    userId?: string;
     options?: { data?: Record<string, unknown>; emailRedirectTo?: string };
     redirectTo?: string;
   };
@@ -89,6 +100,10 @@ export async function POST(request: Request) {
     }
     case "signout":
       return NextResponse.json(await auth.signOut());
+    case "impersonate":
+      return NextResponse.json(await startImpersonation(body.userId ?? ""));
+    case "stop-impersonate":
+      return NextResponse.json(await stopImpersonation());
     case "update":
       return NextResponse.json(
         await auth.updateUser({
