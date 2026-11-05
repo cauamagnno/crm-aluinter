@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { LayoutDashboard, Megaphone, Target } from 'lucide-react'
 
+import { BrDateInput } from '@/components/ui/br-date-input'
+
 import {
   loadActivity,
   loadConversationsSeries,
@@ -27,7 +29,6 @@ import {
   periodToday,
   type DashboardPeriod,
 } from '@/lib/dashboard/period'
-import { toDateInputValue } from '@/lib/dashboard/date-utils'
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
@@ -234,16 +235,14 @@ export default function DashboardPage() {
             />
             <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-sm text-foreground">
               <span className="text-xs text-muted-foreground">{tPeriod('day')}</span>
-              <input
-                type="date"
+              <BrDateInput
                 aria-label={tPeriod('day')}
                 value={periodInputValues(period).from}
-                max={toDateInputValue(new Date())}
-                onChange={(e) => {
-                  if (!e.target.value) return
-                  setPeriod(periodFromInputs('custom', e.target.value, e.target.value))
+                onValueChange={(iso) => {
+                  if (!iso) return
+                  setPeriod(periodFromInputs('custom', iso, iso))
                 }}
-                className="bg-transparent text-sm outline-none"
+                className="h-7 w-[7.5rem] border-0 bg-transparent px-1 shadow-none"
               />
             </label>
           </div>

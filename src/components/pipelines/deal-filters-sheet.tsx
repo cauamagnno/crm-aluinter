@@ -2,6 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { BrDateInput } from "@/components/ui/br-date-input";
+import { BrMoneyInput } from "@/components/ui/br-money-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -69,19 +71,18 @@ export function DealFiltersSheet({
           <div className="grid gap-1.5">
             <Label>{t("value")}</Label>
             <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                value={filters.valueMin}
-                onChange={(e) => set("valueMin", e.target.value)}
+              <BrMoneyInput
+                value={filters.valueMin === "" ? null : Number(filters.valueMin)}
+                onValueChange={(amount) => set("valueMin", amount == null ? "" : String(amount))}
+                allowEmpty
                 placeholder={t("valueFrom")}
                 className="bg-muted"
               />
               <span className="text-xs text-muted-foreground">{t("valueTo")}</span>
-              <Input
-                type="number"
-                value={filters.valueMax}
-                onChange={(e) => set("valueMax", e.target.value)}
-                placeholder="R$ 0,00"
+              <BrMoneyInput
+                value={filters.valueMax === "" ? null : Number(filters.valueMax)}
+                onValueChange={(amount) => set("valueMax", amount == null ? "" : String(amount))}
+                allowEmpty
                 className="bg-muted"
               />
             </div>
@@ -89,30 +90,27 @@ export function DealFiltersSheet({
 
           <div className="grid gap-1.5">
             <Label>{t("createdAt")}</Label>
-            <Input
-              type="date"
+            <BrDateInput
               value={filters.createdFrom}
-              onChange={(e) => set("createdFrom", e.target.value)}
+              onValueChange={(iso) => set("createdFrom", iso)}
               className="bg-muted"
             />
           </div>
 
           <div className="grid gap-1.5">
             <Label>{t("closeDate")}</Label>
-            <Input
-              type="date"
+            <BrDateInput
               value={filters.closeFrom}
-              onChange={(e) => set("closeFrom", e.target.value)}
+              onValueChange={(iso) => set("closeFrom", iso)}
               className="bg-muted"
             />
           </div>
 
           <div className="grid gap-1.5">
             <Label>{t("nextTask")}</Label>
-            <Input
-              type="date"
+            <BrDateInput
               value={filters.nextTaskFrom}
-              onChange={(e) => set("nextTaskFrom", e.target.value)}
+              onValueChange={(iso) => set("nextTaskFrom", iso)}
               className="bg-muted"
             />
           </div>

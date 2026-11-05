@@ -3,6 +3,7 @@
 import type { Deal, PipelineStage } from "@/types";
 import { Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
+import { formatDateTimePt } from "@/lib/pt-format";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
 import { profileLabel, taskKindMessageKey } from "@/lib/pipelines/task-kinds";
 import { useTranslations } from "next-intl";
@@ -16,18 +17,7 @@ interface DealCardProps {
 }
 
 function formatTaskChip(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const date = d.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-  const time = d.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return `${date} ${time}`;
+  return formatDateTimePt(iso);
 }
 
 export function DealCard({
@@ -40,13 +30,13 @@ export function DealCard({
   const t = useTranslations("Pipelines.card");
   const tStatus = useTranslations("Pipelines.status");
   const tTasks = useTranslations("Pipelines.tasks");
-  const contactLabel = deal.contact?.name || deal.contact?.phone || t("noContact");
+  const companyLabel = deal.contact?.company?.trim() || "—";
   const display = dealDisplayStatus(deal);
   const nextTask = deal.next_task;
 
   const badge =
     display === "won"
-      ? { label: t("won"), className: "bg-sky-500/15 text-sky-600" }
+      ? { label: t("won"), className: "bg-emerald-500/15 text-emerald-600" }
       : display === "lost"
         ? { label: t("lost"), className: "bg-red-500/15 text-red-500" }
         : display === "paused"
@@ -56,9 +46,11 @@ export function DealCard({
   const dot =
     display === "lost"
       ? "bg-red-500"
-      : display === "paused"
-        ? "bg-amber-500"
-        : "bg-sky-500";
+      : display === "won"
+        ? "bg-emerald-500"
+        : display === "paused"
+          ? "bg-amber-500"
+          : "bg-sky-500";
 
   return (
     <div
@@ -88,11 +80,14 @@ export function DealCard({
           {deal.title}
         </h4>
         <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {contactLabel}
+          {companyLabel}
         </p>
         <p className="mt-1 text-xs font-medium text-foreground">
           {formatCurrency(deal.value, deal.currency)}
         </p>
+        {display === "lost" && deal.lost_reason ? (
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{deal.lost_reason}</p>
+        ) : null}
         {stage ? <span className="sr-only">{stage.name}</span> : null}
         {display === "open" ? (
           <span className="sr-only">{tStatus("open")}</span>

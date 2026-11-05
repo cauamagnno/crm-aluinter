@@ -36,6 +36,10 @@ type NamedProfile = {
   email?: string | null
 }
 
+export function isOpenTask(task: { done_at?: string | null; cancelled_at?: string | null }) {
+  return !task.done_at && !task.cancelled_at
+}
+
 export function profileLabel(profile?: NamedProfile | null) {
   return profile?.full_name?.trim() || profile?.email?.trim() || ""
 }

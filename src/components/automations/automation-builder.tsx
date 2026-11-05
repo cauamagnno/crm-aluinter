@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { FieldSelect } from "@/components/ui/field-select"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
@@ -314,9 +315,6 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
   )
 }
 
-const SELECT_CLASS =
-  "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
-
 /** Tag dropdown by name + color, storing the tag's id. Falls back to a
  *  raw id input when no tags exist yet. */
 function TagSelect({
@@ -347,23 +345,17 @@ function TagSelect({
         style={{ backgroundColor: selected?.color ?? "transparent" }}
         aria-hidden
       />
-      <select
+      <FieldSelect
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={SELECT_CLASS}
-      >
-        <option value="">{t("tags.select")}</option>
-        {tags.map((tg) => (
-          <option key={tg.id} value={tg.id}>
-            {tg.name}
-          </option>
-        ))}
-        {/* Preserve a saved tag that's since been deleted so editing an
-            existing automation doesn't silently drop it. */}
-        {value && !selected && (
-          <option value={value}>{t("tags.unknown", { id: value })}</option>
-        )}
-      </select>
+        onValueChange={onChange}
+        placeholder={t("tags.select")}
+        className="bg-muted"
+        options={[
+          { value: "", label: t("tags.select") },
+          ...tags.map((tag) => ({ value: tag.id, label: tag.name })),
+          ...(value && !selected ? [{ value, label: t("tags.unknown", { id: value }) }] : []),
+        ]}
+      />
     </div>
   )
 }
@@ -386,27 +378,32 @@ function ContactFieldSelect({
   const knownCustom =
     customValue && customFields.some((f) => `custom:${f.id}` === customValue)
   return (
-    <select
+    <FieldSelect
       value={value || "name"}
-      onChange={(e) => onChange(e.target.value)}
-      className={SELECT_CLASS}
-    >
-      <option value="name">{t("fields.name")}</option>
-      <option value="email">{t("fields.email")}</option>
-      <option value="company">{t("fields.company")}</option>
-      {customFields.length > 0 && (
-        <optgroup label={t("fields.customFields")}>
-          {customFields.map((f) => (
-            <option key={f.id} value={`custom:${f.id}`}>
-              {f.field_name}
-            </option>
-          ))}
-        </optgroup>
-      )}
-      {customValue && !knownCustom && (
-        <option value={customValue}>{t("fields.unknown", { id: customValue })}</option>
-      )}
-    </select>
+      onValueChange={onChange}
+      className="bg-muted"
+      options={[
+        { value: "name", label: t("fields.name") },
+        { value: "email", label: t("fields.email") },
+        { value: "company", label: t("fields.company") },
+        ...(customValue && !knownCustom
+          ? [{ value: customValue, label: t("fields.unknown", { id: customValue }) }]
+          : []),
+      ]}
+      groups={
+        customFields.length > 0
+          ? [
+              {
+                label: t("fields.customFields"),
+                options: customFields.map((field) => ({
+                  value: `custom:${field.id}`,
+                  label: field.field_name,
+                })),
+              },
+            ]
+          : []
+      }
+    />
   )
 }
 
@@ -434,21 +431,20 @@ function AgentSelect({
   }
   const selected = members.find((m) => m.user_id === value)
   return (
-    <select
+    <FieldSelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={SELECT_CLASS}
-    >
-      <option value="">{t("agents.select")}</option>
-      {members.map((m) => (
-        <option key={m.user_id} value={m.user_id}>
-          {m.full_name || m.email || m.user_id}
-        </option>
-      ))}
-      {value && !selected && (
-        <option value={value}>{t("agents.unknown", { id: value })}</option>
-      )}
-    </select>
+      onValueChange={onChange}
+      placeholder={t("agents.select")}
+      className="bg-muted"
+      options={[
+        { value: "", label: t("agents.select") },
+        ...members.map((member) => ({
+          value: member.user_id,
+          label: member.full_name || member.email || member.user_id,
+        })),
+        ...(value && !selected ? [{ value, label: t("agents.unknown", { id: value }) }] : []),
+      ]}
+    />
   )
 }
 
@@ -499,52 +495,46 @@ function DealPipelineFields({
   return (
     <>
       <FieldBlock label={t("pipelines.pipelineLabel")}>
-        <select
+        <FieldSelect
           value={pipelineId}
-          onChange={(e) => {
-            const nextPipelineId = e.target.value
-            const firstStage = stages.find(
-              (s) => s.pipeline_id === nextPipelineId
-            )
+          onValueChange={(nextPipelineId) => {
+            const firstStage = stages.find((stage) => stage.pipeline_id === nextPipelineId)
             onChange({
               pipeline_id: nextPipelineId,
               stage_id: firstStage?.id ?? "",
             })
           }}
-          className={SELECT_CLASS}
-        >
-          <option value="">{t("pipelines.selectPipeline")}</option>
-          {pipelines.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-          {pipelineId && !selectedPipeline && (
-            <option value={pipelineId}>{t("pipelines.unknownPipeline", { id: pipelineId })}</option>
-          )}
-        </select>
+          placeholder={t("pipelines.selectPipeline")}
+          className="bg-muted"
+          options={[
+            { value: "", label: t("pipelines.selectPipeline") },
+            ...pipelines.map((pipeline) => ({ value: pipeline.id, label: pipeline.name })),
+            ...(pipelineId && !selectedPipeline
+              ? [{ value: pipelineId, label: t("pipelines.unknownPipeline", { id: pipelineId }) }]
+              : []),
+          ]}
+        />
       </FieldBlock>
       <FieldBlock label={t("pipelines.stageLabel")}>
-        <select
+        <FieldSelect
           value={stageId}
-          onChange={(e) =>
-            onChange({ pipeline_id: pipelineId, stage_id: e.target.value })
+          onValueChange={(nextStageId) =>
+            onChange({ pipeline_id: pipelineId, stage_id: nextStageId })
           }
-          className={SELECT_CLASS}
           disabled={!pipelineId || stageOptions.length === 0}
-        >
-          <option value="">
-            {pipelineId ? t("pipelines.selectStage") : t("pipelines.selectPipelineFirst")}
-          </option>
-          {stageOptions.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-          {stageId && pipelineId && !selectedStage && (
-            <option value={stageId}>{t("pipelines.unknownStage", { id: stageId })}</option>
-          )}
-        </select>
+          placeholder={pipelineId ? t("pipelines.selectStage") : t("pipelines.selectPipelineFirst")}
+          className="bg-muted"
+          options={[
+            {
+              value: "",
+              label: pipelineId ? t("pipelines.selectStage") : t("pipelines.selectPipelineFirst"),
+            },
+            ...stageOptions.map((stage) => ({ value: stage.id, label: stage.name })),
+            ...(stageId && pipelineId && !selectedStage
+              ? [{ value: stageId, label: t("pipelines.unknownStage", { id: stageId }) }]
+              : []),
+          ]}
+        />
       </FieldBlock>
     </>
   )
@@ -601,29 +591,33 @@ function SendTemplateFields({
 
   return (
     <FieldBlock label={t("templates.templateLabel")}>
-      <select
+      <FieldSelect
         value={current}
-        onChange={(e) => {
-          const [name, lang] = e.target.value.split("::")
+        onValueChange={(next) => {
+          const [name, lang] = next.split("::")
           onChange({ template_name: name ?? "", language: lang ?? "" })
         }}
-        className={SELECT_CLASS}
-      >
-        <option value="">{t("templates.select")}</option>
-        {templates.map((tmpl) => {
-          const lang = tmpl.language ?? "en_US"
-          return (
-            <option key={tmpl.id} value={toValue(tmpl.name, lang)}>
-              {tmpl.name} ({lang})
-            </option>
-          )
-        })}
-        {current && !hasMatch && (
-          <option value={current}>
-            {t("templates.unknown", { name: templateName, lang: language || t("templates.unknownLang") })}
-          </option>
-        )}
-      </select>
+        placeholder={t("templates.select")}
+        className="bg-muted"
+        options={[
+          { value: "", label: t("templates.select") },
+          ...templates.map((tmpl) => {
+            const lang = tmpl.language ?? "en_US"
+            return { value: toValue(tmpl.name, lang), label: `${tmpl.name} (${lang})` }
+          }),
+          ...(current && !hasMatch
+            ? [
+                {
+                  value: current,
+                  label: t("templates.unknown", {
+                    name: templateName,
+                    lang: language || t("templates.unknownLang"),
+                  }),
+                },
+              ]
+            : []),
+        ]}
+      />
     </FieldBlock>
   )
 }
@@ -833,17 +827,15 @@ function TriggerCard({
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 {t("triggerType")}
               </label>
-              <select
+              <FieldSelect
                 value={type}
-                onChange={(e) => onTypeChange(e.target.value as AutomationTriggerType)}
-                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
-              >
-                {TRIGGER_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {t(`triggers.${o.value}.label`)}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(next) => onTypeChange(next as AutomationTriggerType)}
+                className="bg-muted"
+                options={TRIGGER_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(`triggers.${option.value}.label`),
+                }))}
+              />
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {t(`triggers.${type}.hint`)}
               </p>
@@ -958,20 +950,21 @@ function KeywordMatchConfig({
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
           {t("config.matchType")}
         </label>
-        <select
+        <FieldSelect
           value={config?.match_type ?? "contains"}
-          onChange={(e) =>
+          onValueChange={(matchType) =>
             onChange({
               ...config,
-              match_type: e.target.value as "exact" | "contains" | "word",
+              match_type: matchType as "exact" | "contains" | "word",
             })
           }
-          className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
-        >
-          <option value="contains">{t("config.matchContains")}</option>
-          <option value="word">{t("config.matchWord")}</option>
-          <option value="exact">{t("config.matchExact")}</option>
-        </select>
+          className="bg-muted"
+          options={[
+            { value: "contains", label: t("config.matchContains") },
+            { value: "word", label: t("config.matchWord") },
+            { value: "exact", label: t("config.matchExact") },
+          ]}
+        />
         {/* Only worth explaining for `word` — "contains" and "exact" read
             for themselves, and this is the one that changes which messages
             fire an automation in a way that isn't obvious. */}
@@ -1354,14 +1347,15 @@ function StepEditor({
       return (
         <>
           <FieldBlock label={t("config.modeLabel")}>
-            <select
+            <FieldSelect
               value={(cfg.mode as string) ?? "round_robin"}
-              onChange={(e) => set({ mode: e.target.value })}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-            >
-              <option value="round_robin">{t("config.modes.round_robin")}</option>
-              <option value="specific">{t("config.modes.specific")}</option>
-            </select>
+              onValueChange={(mode) => set({ mode })}
+              className="bg-muted"
+              options={[
+                { value: "round_robin", label: t("config.modes.round_robin") },
+                { value: "specific", label: t("config.modes.specific") },
+              ]}
+            />
           </FieldBlock>
           {cfg.mode === "specific" && (
             <FieldBlock label={t("config.agentLabel")}>
@@ -1433,15 +1427,16 @@ function StepEditor({
             />
           </FieldBlock>
           <FieldBlock label={t("config.unitLabel")}>
-            <select
+            <FieldSelect
               value={(cfg.unit as string) ?? "hours"}
-              onChange={(e) => set({ unit: e.target.value })}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-            >
-              <option value="minutes">{t("config.units.minutes")}</option>
-              <option value="hours">{t("config.units.hours")}</option>
-              <option value="days">{t("config.units.days")}</option>
-            </select>
+              onValueChange={(unit) => set({ unit })}
+              className="bg-muted"
+              options={[
+                { value: "minutes", label: t("config.units.minutes") },
+                { value: "hours", label: t("config.units.hours") },
+                { value: "days", label: t("config.units.days") },
+              ]}
+            />
           </FieldBlock>
         </div>
       )
@@ -1449,16 +1444,17 @@ function StepEditor({
       return (
         <>
           <FieldBlock label={t("config.subjectLabel")}>
-            <select
+            <FieldSelect
               value={(cfg.subject as string) ?? "tag_presence"}
-              onChange={(e) => set({ subject: e.target.value })}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-            >
-              <option value="tag_presence">{t("config.subjects.tag_presence")}</option>
-              <option value="contact_field">{t("config.subjects.contact_field")}</option>
-              <option value="message_content">{t("config.subjects.message_content")}</option>
-              <option value="time_of_day">{t("config.subjects.time_of_day")}</option>
-            </select>
+              onValueChange={(subject) => set({ subject })}
+              className="bg-muted"
+              options={[
+                { value: "tag_presence", label: t("config.subjects.tag_presence") },
+                { value: "contact_field", label: t("config.subjects.contact_field") },
+                { value: "message_content", label: t("config.subjects.message_content") },
+                { value: "time_of_day", label: t("config.subjects.time_of_day") },
+              ]}
+            />
           </FieldBlock>
           <FieldBlock label={t("config.operandLabel")}>
             <Input

@@ -10,9 +10,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { localDayKey } from "@/lib/dashboard/date-utils";
+import { formatDateTimePt } from "@/lib/pt-format";
 import { SellerPicker } from "@/components/dashboard/seller-picker";
 import { DealTaskForm } from "@/components/pipelines/deal-task-form";
+import { BrDateInput } from "@/components/ui/br-date-input";
 import { Button } from "@/components/ui/button";
+import { FieldSelect } from "@/components/ui/field-select";
 import type { Deal, DealTask, Profile } from "@/types";
 
 type TaskRow = DealTask & {
@@ -38,7 +41,7 @@ function TarefasPageInner() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<"pending" | "done">("pending");
+  const [status, setStatus] = useState<"pending" | "done" | "cancelled">("pending");
   const [kind, setKind] = useState<string>("all");
   const [sellerId, setSellerId] = useState("all");
   const [from, setFrom] = useState("");
@@ -51,7 +54,9 @@ function TarefasPageInner() {
     if (!queryKey) return;
     const statusParam = searchParams.get("status");
     const kindParam = searchParams.get("kind") ?? "all";
-    setStatus(statusParam === "done" ? "done" : "pending");
+    setStatus(
+      statusParam === "done" ? "done" : statusParam === "cancelled" ? "cancelled" : "pending",
+    );
     setKind(KINDS.includes(kindParam as (typeof KINDS)[number]) ? kindParam : "all");
     setFrom(searchParams.get("from") ?? "");
     setTo(searchParams.get("to") ?? "");
@@ -88,12 +93,15 @@ function TarefasPageInner() {
 
   const visible = useMemo(() => {
     return tasks.filter((task) => {
-      const done = Boolean(task.done_at);
-      if (status === "pending" && done) return false;
+      const cancelled = Boolean(task.cancelled_at);
+      const done = Boolean(task.done_at) && !cancelled;
+      if (status === "pending" && (done || cancelled)) return false;
       if (status === "done" && !done) return false;
+      if (status === "cancelled" && !cancelled) return false;
       if (kind !== "all" && task.kind !== kind) return false;
       if (sellerId !== "all" && task.assignee_id !== sellerId) return false;
-      const anchor = status === "done" ? task.done_at : task.due_at;
+      const anchor =
+        status === "done" ? task.done_at : status === "cancelled" ? task.cancelled_at : task.due_at;
       if (!anchor) return false;
       const day = localDayKey(anchor);
       if (from && day < from) return false;
@@ -113,6 +121,20 @@ function TarefasPageInner() {
       return;
     }
     toast.success(t("completed"));
+    void load();
+  }
+
+  async function cancelTask(task: TaskRow) {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("deal_tasks")
+      .update({ cancelled_at: new Date().toISOString() })
+      .eq("id", task.id);
+    if (error) {
+      toast.error(t("cancelFailed"));
+      return;
+    }
+    toast.success(t("taskCancelled"));
     void load();
   }
 
@@ -139,26 +161,27 @@ function TarefasPageInner() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <select
+        <FieldSelect
+          aria-label={t("colStatus")}
           value={status}
-          onChange={(e) => setStatus(e.target.value as "pending" | "done")}
-          className="h-9 rounded-lg border border-border bg-card px-2 text-sm"
-        >
-          <option value="pending">{t("pending")}</option>
-          <option value="done">{t("done")}</option>
-        </select>
-        <select
+          onValueChange={(next) => setStatus(next as "pending" | "done" | "cancelled")}
+          className="w-auto"
+          options={[
+            { value: "pending", label: t("pending") },
+            { value: "done", label: t("done") },
+            { value: "cancelled", label: t("cancelled") },
+          ]}
+        />
+        <FieldSelect
+          aria-label={t("allKinds")}
           value={kind}
-          onChange={(e) => setKind(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-card px-2 text-sm"
-        >
-          <option value="all">{t("allKinds")}</option>
-          {KINDS.map((item) => (
-            <option key={item} value={item}>
-              {kindLabel(item)}
-            </option>
-          ))}
-        </select>
+          onValueChange={setKind}
+          className="w-auto"
+          options={[
+            { value: "all", label: t("allKinds") },
+            ...KINDS.map((item) => ({ value: item, label: kindLabel(item) })),
+          ]}
+        />
         <SellerPicker
           sellerId={sellerId}
           sellers={profiles.map((person) => ({
@@ -167,19 +190,17 @@ function TarefasPageInner() {
           }))}
           onChange={setSellerId}
         />
-        <input
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-card px-2 text-sm"
+        <BrDateInput
           aria-label={t("from")}
+          value={from}
+          onValueChange={setFrom}
+          className="h-9 w-[8.5rem] bg-card"
         />
-        <input
-          type="date"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-card px-2 text-sm"
+        <BrDateInput
           aria-label={t("to")}
+          value={to}
+          onValueChange={setTo}
+          className="h-9 w-[8.5rem] bg-card"
         />
       </div>
 
@@ -207,7 +228,7 @@ function TarefasPageInner() {
             </thead>
             <tbody>
               {visible.map((task) => {
-                const late = !task.done_at && new Date(task.due_at).getTime() < Date.now();
+                const late = !task.done_at && !task.cancelled_at && new Date(task.due_at).getTime() < Date.now();
                 const seller = profiles.find((person) => person.id === task.assignee_id);
                 return (
                   <tr key={task.id} className="border-t border-border">
@@ -216,15 +237,22 @@ function TarefasPageInner() {
                       <p className="text-xs text-muted-foreground">{kindLabel(task.kind)}</p>
                     </td>
                     <td className="px-3 py-2 text-xs">
-                      {task.done_at ? t("statusDone") : late ? t("statusLate") : t("statusOpen")}
+                      {task.cancelled_at
+                        ? t("statusCancelled")
+                        : task.done_at
+                          ? t("statusDone")
+                          : late
+                            ? t("statusLate")
+                            : t("statusOpen")}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {new Date(status === "done" && task.done_at ? task.done_at : task.due_at).toLocaleString("pt-BR", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {formatDateTimePt(
+                        status === "done" && task.done_at
+                          ? task.done_at
+                          : status === "cancelled" && task.cancelled_at
+                            ? task.cancelled_at
+                            : task.due_at,
+                      )}
                     </td>
                     <td className="hidden px-3 py-2 md:table-cell">{task.deal?.title ?? "—"}</td>
                     <td className="hidden px-3 py-2 md:table-cell">
@@ -236,11 +264,16 @@ function TarefasPageInner() {
                         : "—"}
                     </td>
                     <td className="px-3 py-2 text-right">
-                      {!task.done_at && (
-                        <Button size="sm" variant="outline" onClick={() => void markDone(task)}>
-                          <Check className="h-3.5 w-3.5" />
-                          {t("complete")}
-                        </Button>
+                      {!task.done_at && !task.cancelled_at && (
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="outline" onClick={() => void cancelTask(task)}>
+                            {t("cancelTask")}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => void markDone(task)}>
+                            <Check className="h-3.5 w-3.5" />
+                            {t("complete")}
+                          </Button>
+                        </div>
                       )}
                     </td>
                   </tr>

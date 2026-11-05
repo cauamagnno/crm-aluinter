@@ -48,9 +48,8 @@ export const CURRENCIES: CurrencyOption[] = [
 ];
 
 /**
- * Format a deal value as a currency string. Whole-number output
- * (no minor units) — deal values are tracked as whole currency units
- * across the app. `currency` defaults to BRL so callers with nothing
+ * Format a deal value as Brazilian currency text, with centavos
+ * (`R$ 1.234,56`). `currency` defaults to BRL so callers with nothing
  * better stay safe, but pass the account/deal currency wherever known.
  *
  * Total by design: `Intl.NumberFormat` throws a RangeError on a
@@ -70,22 +69,22 @@ export function formatCurrency(
     return new Intl.NumberFormat(CURRENCY_LOCALE, {
       style: "currency",
       currency: code,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount);
   } catch {
     // Invalid ISO code — show the raw code + grouped number so the
     // value is still legible instead of throwing.
     return `${code} ${new Intl.NumberFormat(CURRENCY_LOCALE, {
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount)}`;
   }
 }
 
 /**
- * Compact currency for tight spaces (donut center, legend rows):
- * "$1.2M" / "€34.5k" / "₹900". Uses the currency's symbol from
- * CURRENCIES, falling back to the code when we don't carry a symbol.
+ * Compact currency for tight spaces: "R$ 1,2 mil" / "R$ 2,5 mi".
+ * Uses the currency symbol and Portuguese magnitude words.
  */
 export function formatCurrencyShort(
   value: number,
@@ -93,7 +92,14 @@ export function formatCurrencyShort(
 ): string {
   const code = currency || DEFAULT_CURRENCY;
   const symbol = CURRENCIES.find((c) => c.code === code)?.symbol ?? `${code} `;
-  return `${symbol}${formatCompactNumber(value)}`;
+  const amount = Number(value || 0);
+  const digits = new Intl.NumberFormat(CURRENCY_LOCALE, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  if (amount >= 1_000_000) return `${symbol}${digits.format(amount / 1_000_000)} mi`;
+  if (amount >= 1_000) return `${symbol}${digits.format(amount / 1_000)} mil`;
+  return formatCurrency(amount, code);
 }
 
 /**

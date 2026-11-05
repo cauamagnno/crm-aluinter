@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { parseBroadcastCsv } from '@/lib/broadcast-csv';
 import { CustomField, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
+import { FieldSelect } from '@/components/ui/field-select';
 import { toast } from 'sonner';
 import {
   Users,
@@ -389,33 +390,27 @@ export function Step2SelectAudience({
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_140px_minmax(0,1fr)]">
-              <select
+              <FieldSelect
                 value={audience.customField?.fieldId ?? ''}
-                onChange={(e) => updateCustomField({ fieldId: e.target.value })}
-                className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              >
-                <option value="">{t('selectAudience.selectField')}</option>
-                {customFields.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.field_name}
-                  </option>
-                ))}
-              </select>
-              <select
+                onValueChange={(fieldId) => updateCustomField({ fieldId })}
+                placeholder={t('selectAudience.selectField')}
+                className="bg-muted"
+                options={[
+                  { value: '', label: t('selectAudience.selectField') },
+                  ...customFields.map((field) => ({ value: field.id, label: field.field_name })),
+                ]}
+              />
+              <FieldSelect
                 value={audience.customField?.operator ?? 'is'}
-                onChange={(e) =>
-                  updateCustomField({
-                    operator: e.target.value as CustomFieldOperator,
-                  })
+                onValueChange={(operator) =>
+                  updateCustomField({ operator: operator as CustomFieldOperator })
                 }
-                className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              >
-                {OPERATOR_OPTIONS.map((op: { value: CustomFieldOperator; label: string }) => (
-                  <option key={op.value} value={op.value}>
-                    {op.label}
-                  </option>
-                ))}
-              </select>
+                className="bg-muted"
+                options={OPERATOR_OPTIONS.map((op: { value: CustomFieldOperator; label: string }) => ({
+                  value: op.value,
+                  label: op.label,
+                }))}
+              />
               <input
                 type="text"
                 value={audience.customField?.value ?? ''}

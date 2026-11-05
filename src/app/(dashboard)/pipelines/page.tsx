@@ -50,6 +50,7 @@ import {
   UserPlus,
   Pause,
   Plus,
+  Search,
   Settings,
   ThumbsDown,
   ThumbsUp,
@@ -77,7 +78,7 @@ type BoardView = "kanban" | "list";
 function attachNextTasks(deals: Deal[], tasks: DealTask[]): Deal[] {
   const openByDeal = new Map<string, DealTask[]>();
   for (const task of tasks) {
-    if (task.done_at) continue;
+    if (task.done_at || task.cancelled_at) continue;
     const list = openByDeal.get(task.deal_id) ?? [];
     list.push(task);
     openByDeal.set(task.deal_id, list);
@@ -128,9 +129,23 @@ function PipelinesPageInner() {
   const [kanbanStartToken, setKanbanStartToken] = useState(0);
   const [listLimit, setListLimit] = useState(LIST_PAGE_SIZE);
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const status = searchParams.get("status");
+    if (
+      status === "open" ||
+      status === "won" ||
+      status === "lost" ||
+      status === "paused" ||
+      status === "not_paused" ||
+      status === "all"
+    ) {
+      return status;
+    }
+    return "open";
+  });
   const [sortFilter, setSortFilter] = useState<SortFilter>("created_desc");
   const [filters, setFilters] = useState<DealFilterState>(EMPTY_DEAL_FILTERS);
+  const [dealQuery, setDealQuery] = useState("");
   const [contactFormOpen, setContactFormOpen] = useState(false);
   const [contactIntent, setContactIntent] = useState<"contact" | "company">("contact");
   const [contactCardId, setContactCardId] = useState<string | null>(null);
@@ -207,7 +222,7 @@ function PipelinesPageInner() {
       const { data } = await supabase
         .from("deals")
         .select(
-          "id, pipeline_id, stage_id, title, value, currency, status, paused, assigned_to, created_at, updated_at, expected_close_date, closed_at, contact_id",
+          "id, pipeline_id, stage_id, title, value, currency, status, paused, assigned_to, created_at, updated_at, expected_close_date, closed_at, contact_id, contact:contacts(id, name, company)",
         )
         .eq("pipeline_id", pipelineId);
       return (data ?? []) as Deal[];
@@ -441,20 +456,24 @@ function PipelinesPageInner() {
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
   const activeFilterCount = countActiveFilters(filters);
 
-  const visibleDeals = useMemo(() => {
+  const scopedDeals = useMemo(() => {
     let rows = [...slimDeals];
     if (ownerFilter !== "all") {
       rows = rows.filter((d) => d.assigned_to === ownerFilter);
     }
-    rows = rows.filter((d) => dealMatchesStatusFilter(d, statusFilter));
-    if (filters.name.trim()) {
-      const q = filters.name.trim().toLowerCase();
-      rows = rows.filter(
-        (d) =>
-          d.title.toLowerCase().includes(q) ||
-          (d.contact?.name ?? "").toLowerCase().includes(q),
-      );
-    }
+    const matchesQuery = (deal: Deal, query: string) => {
+      const raw = deal.contact as Deal["contact"] | NonNullable<Deal["contact"]>[] | null;
+      const contact = Array.isArray(raw) ? raw[0] : raw;
+      const haystack = [deal.title, contact?.name, contact?.company]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    };
+    const typed = dealQuery.trim().toLowerCase();
+    if (typed) rows = rows.filter((deal) => matchesQuery(deal, typed));
+    const named = filters.name.trim().toLowerCase();
+    if (named) rows = rows.filter((deal) => matchesQuery(deal, named));
     const min = filters.valueMin ? Number(filters.valueMin) : null;
     const max = filters.valueMax ? Number(filters.valueMax) : null;
     if (min != null && !Number.isNaN(min)) {
@@ -493,7 +512,12 @@ function PipelinesPageInner() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return rows;
-  }, [slimDeals, ownerFilter, statusFilter, sortFilter, filters]);
+  }, [slimDeals, ownerFilter, sortFilter, filters, dealQuery]);
+
+  const visibleDeals = useMemo(
+    () => scopedDeals.filter((deal) => dealMatchesStatusFilter(deal, statusFilter)),
+    [scopedDeals, statusFilter],
+  );
 
   const cardWindows = useMemo(() => {
     const map = new Map<string, { slice: Deal[]; total: number; value: number }>();
@@ -712,6 +736,15 @@ function PipelinesPageInner() {
 
       {pipelines.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1 max-w-md">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={dealQuery}
+              onChange={(event) => setDealQuery(event.target.value)}
+              placeholder={t("searchDeal")}
+              className="h-9 bg-card pl-8"
+            />
+          </div>
           <ToolbarSelect
             label={
               ownerFilter === "all"
@@ -832,7 +865,7 @@ function PipelinesPageInner() {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-          <PipelineAnalytics stages={stages} deals={visibleDeals} />
+          <PipelineAnalytics stages={stages} deals={scopedDeals} />
           <div className="min-h-0 flex-1 overflow-hidden">
             {view === "list" ? (
               <div className="h-full overflow-y-auto">
@@ -932,12 +965,7 @@ function PipelinesPageInner() {
         defaultStageId={defaultStageId}
         onSaved={refreshDeals}
         onCreated={(saved) => {
-          if (saved.contact_id) {
-            router.push(`/contacts/${saved.contact_id}`);
-            return;
-          }
-          setView("kanban");
-          setKanbanStartToken((current) => current + 1);
+          router.push(`/pipelines/${saved.id}`);
         }}
       />
 

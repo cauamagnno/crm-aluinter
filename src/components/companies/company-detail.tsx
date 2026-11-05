@@ -205,7 +205,7 @@ export function CompanyDetail({ contactId }: { contactId: string }) {
       dealIds.length
         ? supabase
             .from("deal_tasks")
-            .select("id, deal_id, title, due_at, done_at, created_at")
+            .select("id, deal_id, title, due_at, done_at, cancelled_at, created_at")
             .in("deal_id", dealIds)
             .order("created_at", { ascending: false })
         : Promise.resolve({ data: [] as DealTask[] }),
@@ -217,7 +217,7 @@ export function CompanyDetail({ contactId }: { contactId: string }) {
     const taskRows = (taskRes.data as DealTask[]) ?? [];
     const next: Record<string, string> = {};
     const openTasks = [...taskRows]
-      .filter((task) => !task.done_at)
+      .filter((task) => !task.done_at && !task.cancelled_at)
       .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
     for (const task of openTasks) {
       if (!next[task.deal_id]) next[task.deal_id] = task.title;

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { addContactTag, deleteContactTag } from '@/lib/contacts/tag-api';
 import { toast } from 'sonner';
+import { FieldSelect } from '@/components/ui/field-select';
 import type { Contact, Tag, ContactTag } from '@/types';
 import {
   findExistingContact,
@@ -380,18 +381,19 @@ export function ContactForm({
             <p className="text-sm font-medium text-foreground">{t('attributions')}</p>
             <Label className="text-muted-foreground">{t('ownerLabel')}</Label>
             {canPickOwner ? (
-              <select
+              <FieldSelect
                 value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
-              >
-                <option value="">{t('ownerNone')}</option>
-                {ownerOptions.map((owner) => (
-                  <option key={owner.id} value={owner.id}>
-                    {owner.full_name || owner.email}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setAssignedTo}
+                placeholder={t('ownerNone')}
+                className="bg-muted"
+                options={[
+                  { value: '', label: t('ownerNone') },
+                  ...ownerOptions.map((owner) => ({
+                    value: owner.id,
+                    label: owner.full_name || owner.email || '',
+                  })),
+                ]}
+              />
             ) : (
               <p className="text-sm text-foreground">
                 {ownerOptions.find((owner) => owner.id === assignedTo)?.full_name || t('ownerNone')}

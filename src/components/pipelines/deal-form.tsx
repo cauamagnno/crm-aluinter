@@ -22,9 +22,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { BrDateInput } from "@/components/ui/br-date-input";
+import { BrMoneyInput } from "@/components/ui/br-money-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldSelect } from "@/components/ui/field-select";
 import {
   Check,
   X,
@@ -289,18 +292,16 @@ export function DealForm({
 
             <div className="grid gap-2">
               <Label className="text-muted-foreground">{t("contact")}</Label>
-              <select
+              <FieldSelect
                 value={contactId}
-                onChange={(e) => setContactId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              >
-                <option value="">{t("selectContact")}</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {contactCompanyLabel(c)}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setContactId}
+                placeholder={t("selectContact")}
+                className="bg-muted"
+                options={[
+                  { value: "", label: t("selectContact") },
+                  ...contacts.map((c) => ({ value: c.id, label: contactCompanyLabel(c) })),
+                ]}
+              />
 
               {linkedConversation && (
                 <Link
@@ -315,59 +316,45 @@ export function DealForm({
 
             <div className="grid gap-2">
               <Label className="text-muted-foreground">{t("value")}</Label>
-              <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
-                  R$
-                </span>
-                <Input
-                  type="number"
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                  placeholder="0"
-                  className="border-border bg-muted pl-9 text-foreground"
-                />
-              </div>
+              <BrMoneyInput
+                value={value === "" ? null : Number(value)}
+                onValueChange={(amount) => setValue(amount == null ? "" : String(amount))}
+                allowEmpty
+                className="border-border bg-muted text-foreground"
+              />
             </div>
 
             <div className="grid gap-2">
               <Label className="text-muted-foreground">{t("expectedCloseDate")}</Label>
-              <Input
-                type="date"
-                value={expectedCloseDate}
-                onChange={(e) => setExpectedCloseDate(e.target.value)}
+              <BrDateInput
+                value={expectedCloseDate.slice(0, 10)}
+                onValueChange={setExpectedCloseDate}
                 className="border-border bg-muted text-foreground"
               />
             </div>
 
             <div className="grid gap-2">
               <Label className="text-muted-foreground">{t("stage")}</Label>
-              <select
+              <FieldSelect
                 value={stageId}
-                onChange={(e) => setStageId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary"
-              >
-                {stages.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setStageId}
+                className="bg-muted"
+                options={stages.map((s) => ({ value: s.id, label: s.name }))}
+              />
             </div>
 
             <div className="grid gap-2">
               <Label className="text-muted-foreground">{t("assignedTo")}</Label>
-              <select
+              <FieldSelect
                 value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary"
-              >
-                <option value="">{t("unassigned")}</option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name || p.email}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setAssignedTo}
+                placeholder={t("unassigned")}
+                className="bg-muted"
+                options={[
+                  { value: "", label: t("unassigned") },
+                  ...profiles.map((p) => ({ value: p.id, label: p.full_name || p.email })),
+                ]}
+              />
             </div>
 
             <div className="grid gap-2">

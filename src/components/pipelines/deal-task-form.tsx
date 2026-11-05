@@ -9,9 +9,11 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Deal, Profile } from "@/types";
 import { Button } from "@/components/ui/button";
+import { BrDateInput } from "@/components/ui/br-date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldSelect } from "@/components/ui/field-select";
 import {
   Sheet,
   SheetContent,
@@ -121,17 +123,12 @@ export function DealTaskForm({
           </div>
           <div className="grid gap-1.5">
             <Label>{t("deal")} *</Label>
-            <select
+            <FieldSelect
               value={dealId}
-              onChange={(e) => setDealId(e.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
-            >
-              {deals.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.title}
-                </option>
-              ))}
-            </select>
+              onValueChange={setDealId}
+              className="bg-muted"
+              options={deals.map((d) => ({ value: d.id, label: d.title }))}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>{t("subject")} *</Label>
@@ -153,40 +150,33 @@ export function DealTaskForm({
           </div>
           <div className="grid gap-1.5">
             <Label>{t("assignee")} *</Label>
-            <select
+            <FieldSelect
               value={assigneeId}
-              onChange={(e) => setAssigneeId(e.target.value)}
+              onValueChange={setAssigneeId}
               disabled={lockAssignee}
-              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm disabled:opacity-70"
-            >
-              <option value="">—</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name || p.email}
-                </option>
-              ))}
-            </select>
+              className="bg-muted"
+              options={[
+                { value: "", label: "—" },
+                ...profiles.map((p) => ({ value: p.id, label: p.full_name || p.email })),
+              ]}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>{t("kind")} *</Label>
-            <select
+            <FieldSelect
               value={kind}
-              onChange={(e) => setKind(e.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
-            >
-              <option value="ligacao">{t("kindCall")}</option>
-              <option value="whatsapp">{t("kindWhatsapp")}</option>
-              <option value="email">{t("kindEmail")}</option>
-            </select>
+              onValueChange={setKind}
+              className="bg-muted"
+              options={[
+                { value: "ligacao", label: t("kindCall") },
+                { value: "whatsapp", label: t("kindWhatsapp") },
+                { value: "email", label: t("kindEmail") },
+              ]}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>{t("dueDate")} *</Label>
-            <Input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="bg-muted"
-            />
+            <BrDateInput value={dueDate} onValueChange={setDueDate} className="bg-muted" />
           </div>
           <div className="grid gap-1.5">
             <Label>{t("dueTime")} *</Label>

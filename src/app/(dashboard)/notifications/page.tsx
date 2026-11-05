@@ -19,7 +19,7 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   conversation_assigned: UserPlus,
 };
 
-const DATE_LOCALES = { pt: ptBR, en: enUS, ko } as const;
+const DATE_LOCALES = { pt: ptBR, "pt-BR": ptBR, en: enUS, ko } as const;
 
 export default function NotificationsPage() {
   const t = useTranslations("Notifications");

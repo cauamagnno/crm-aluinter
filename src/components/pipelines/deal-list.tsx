@@ -2,6 +2,7 @@
 
 import type { Deal, PipelineStage, Profile } from "@/types";
 import { formatCurrency } from "@/lib/currency";
+import { formatDateTimePt } from "@/lib/pt-format";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
 import { profileLabel } from "@/lib/pipelines/task-kinds";
 import { Button } from "@/components/ui/button";
@@ -29,19 +30,11 @@ function companyName(deal: Deal) {
 }
 
 function formatWhen(iso: string) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDateTimePt(iso);
 }
 
 const STATUS_CLASS = {
-  won: "bg-sky-500/15 text-sky-600",
+  won: "bg-emerald-500/15 text-emerald-600",
   lost: "bg-red-500/15 text-red-500",
   paused: "bg-amber-500/15 text-amber-600",
   open: "bg-sky-500/15 text-sky-600",

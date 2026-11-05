@@ -17,13 +17,17 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { dealStatusPatch } from "@/lib/pipelines/close-deal";
 import { formatCurrency } from "@/lib/currency";
+import { formatDatePt } from "@/lib/pt-format";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
 import { taskKindMessageKey, taskSeller } from "@/lib/pipelines/task-kinds";
 import type { Deal, DealStatus, DealTask, PipelineStage, Profile } from "@/types";
 import { Button } from "@/components/ui/button";
+import { BrDateInput } from "@/components/ui/br-date-input";
+import { BrMoneyInput } from "@/components/ui/br-money-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldSelect } from "@/components/ui/field-select";
 import {
   Dialog,
   DialogContent,
@@ -109,7 +113,7 @@ export function DealDetailDialog({
   const current = deal;
 
   const display = dealDisplayStatus(current);
-  const contactLabel = current.contact?.name || current.contact?.phone || "—";
+  const companyLabel = current.contact?.company?.trim() || "—";
 
   async function handleSave() {
     if (!title.trim() || !stageId) {
@@ -191,7 +195,7 @@ export function DealDetailDialog({
     onSaved();
   }
 
-  const openTasks = tasks.filter((task) => !task.done_at);
+  const openTasks = tasks.filter((task) => !task.done_at && !task.cancelled_at);
   const doneTasks = tasks.filter((task) => task.done_at);
 
   return (
@@ -199,10 +203,10 @@ export function DealDetailDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto border-border bg-popover sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="pr-8">{deal.title}</DialogTitle>
-          <p className="text-sm text-muted-foreground">{contactLabel}</p>
+          <p className="text-sm text-muted-foreground">{companyLabel}</p>
           <p className="text-xs text-muted-foreground">
             {t("createdAt")}{" "}
-            {new Date(deal.created_at).toLocaleDateString("pt-BR")}
+            {formatDatePt(deal.created_at)}
             {" · "}
             {tStatus(display === "paused" ? "paused" : display === "lost" ? "lost" : display === "won" ? "won" : "open")}
           </p>
@@ -215,55 +219,42 @@ export function DealDetailDialog({
           </div>
           <div className="grid gap-1.5">
             <Label>{t("value")}</Label>
-            <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                R$
-              </span>
-              <Input
-                type="number"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                className="bg-muted pl-9"
-              />
-            </div>
+            <BrMoneyInput
+              value={value === "" ? null : Number(value)}
+              onValueChange={(amount) => setValue(amount == null ? "" : String(amount))}
+              allowEmpty
+              className="bg-muted"
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>{t("expectedCloseDate")}</Label>
-            <Input
-              type="date"
-              value={expectedCloseDate}
-              onChange={(e) => setExpectedCloseDate(e.target.value)}
+            <BrDateInput
+              value={expectedCloseDate.slice(0, 10)}
+              onValueChange={setExpectedCloseDate}
               className="bg-muted"
             />
           </div>
           <div className="grid gap-1.5">
             <Label>{t("stage")}</Label>
-            <select
+            <FieldSelect
               value={stageId}
-              onChange={(e) => setStageId(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm"
-            >
-              {stages.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              onValueChange={setStageId}
+              className="bg-muted"
+              options={stages.map((s) => ({ value: s.id, label: s.name }))}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>{t("assignedTo")}</Label>
-            <select
+            <FieldSelect
               value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm"
-            >
-              <option value="">{t("unassigned")}</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name || p.email}
-                </option>
-              ))}
-            </select>
+              onValueChange={setAssignedTo}
+              placeholder={t("unassigned")}
+              className="bg-muted"
+              options={[
+                { value: "", label: t("unassigned") },
+                ...profiles.map((p) => ({ value: p.id, label: p.full_name || p.email })),
+              ]}
+            />
           </div>
           <div className="grid gap-1.5 sm:col-span-2">
             <Label>{t("notes")}</Label>

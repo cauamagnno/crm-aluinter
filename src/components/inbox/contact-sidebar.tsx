@@ -70,7 +70,7 @@ interface ContactSidebarProps {
   onContactDeleted?: (contactId: string) => void;
 }
 
-const DATE_LOCALES = { pt: ptBR, en: enUS, ko } as const;
+const DATE_LOCALES = { pt: ptBR, "pt-BR": ptBR, en: enUS, ko } as const;
 
 export function ContactSidebar({
   contact,

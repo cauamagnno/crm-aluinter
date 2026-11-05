@@ -26,6 +26,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FieldSelect } from '@/components/ui/field-select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -866,18 +867,19 @@ export function ContactDetailView({
                     <p className="text-xs font-medium text-foreground">{t('attributions')}</p>
                     <Label className="text-muted-foreground text-xs">{t('owner')}</Label>
                     {canEdit ? (
-                      <select
+                      <FieldSelect
                         value={editAssignedTo}
-                        onChange={(e) => setEditAssignedTo(e.target.value)}
-                        className="h-8 w-full rounded-lg border border-border bg-muted px-2.5 text-sm"
-                      >
-                        <option value="">{t('ownerNone')}</option>
-                        {owners.map((owner) => (
-                          <option key={owner.id} value={owner.id}>
-                            {owner.full_name || owner.email}
-                          </option>
-                        ))}
-                      </select>
+                        onValueChange={setEditAssignedTo}
+                        placeholder={t('ownerNone')}
+                        className="bg-muted"
+                        options={[
+                          { value: '', label: t('ownerNone') },
+                          ...owners.map((owner) => ({
+                            value: owner.id,
+                            label: owner.full_name || owner.email || '',
+                          })),
+                        ]}
+                      />
                     ) : (
                       <p className="text-sm text-foreground">
                         {owners.find((owner) => owner.id === editAssignedTo)?.full_name || t('ownerNone')}
@@ -1096,7 +1098,7 @@ export function ContactDetailView({
                           <span
                             className={
                               dealDisplayStatus(deal) === 'won'
-                                ? 'font-medium text-primary'
+                                ? 'font-medium text-emerald-600'
                                 : dealDisplayStatus(deal) === 'lost'
                                   ? 'font-medium text-red-400'
                                   : 'font-medium text-foreground'

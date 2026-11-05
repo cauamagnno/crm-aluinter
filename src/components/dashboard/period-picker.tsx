@@ -3,6 +3,7 @@
 import { CalendarRange } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { BrDateInput } from '@/components/ui/br-date-input'
 import {
   periodFromInputs,
   periodInputValues,
@@ -16,8 +17,6 @@ import {
   type DashboardPeriod,
   type PeriodPreset,
 } from '@/lib/dashboard/period'
-import { toDateInputValue } from '@/lib/dashboard/date-utils'
-
 const PRESETS: PeriodPreset[] = [
   'today',
   'week',
@@ -37,7 +36,6 @@ export function PeriodPicker({
 }) {
   const t = useTranslations('Dashboard.period')
   const values = periodInputValues(period)
-  const max = toDateInputValue(new Date())
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -74,30 +72,27 @@ export function PeriodPicker({
         <CalendarRange className="h-3.5 w-3.5 shrink-0" />
         <label className="inline-flex items-center gap-1.5">
           <span className="sr-only">{t('from')}</span>
-          <input
-            type="date"
+          <BrDateInput
+            aria-label={t('from')}
             value={values.from}
-            max={values.to}
-            onChange={(e) => {
-              if (!e.target.value) return
-              onChange(periodFromInputs('custom', e.target.value, values.to))
+            onValueChange={(iso) => {
+              if (!iso) return
+              onChange(periodFromInputs('custom', iso, values.to))
             }}
-            className="bg-transparent text-foreground outline-none"
+            className="h-7 w-[7.5rem] border-0 bg-transparent px-1 text-foreground shadow-none"
           />
         </label>
         <span aria-hidden>—</span>
         <label className="inline-flex items-center gap-1.5">
           <span className="sr-only">{t('to')}</span>
-          <input
-            type="date"
+          <BrDateInput
+            aria-label={t('to')}
             value={values.to}
-            min={values.from}
-            max={max}
-            onChange={(e) => {
-              if (!e.target.value) return
-              onChange(periodFromInputs('custom', values.from, e.target.value))
+            onValueChange={(iso) => {
+              if (!iso) return
+              onChange(periodFromInputs('custom', values.from, iso))
             }}
-            className="bg-transparent text-foreground outline-none"
+            className="h-7 w-[7.5rem] border-0 bg-transparent px-1 text-foreground shadow-none"
           />
         </label>
       </div>

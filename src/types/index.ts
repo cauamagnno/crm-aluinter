@@ -384,6 +384,7 @@ export interface DealTask {
   due_at: string;
   kind: string;
   done_at?: string | null;
+  cancelled_at?: string | null;
   created_by: string;
   created_at: string;
   assignee?: Profile;
@@ -410,6 +411,8 @@ export interface Deal {
   products?: string[] | null;
   expected_close_date?: string;
   status?: DealStatus;
+  /** Required when status is lost. Cleared when the deal is won or reopened. */
+  lost_reason?: string | null;
   paused?: boolean;
   /** Set when the deal is marked won or lost. Cleared when reopened. */
   closed_at?: string | null;

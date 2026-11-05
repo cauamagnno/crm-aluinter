@@ -7,11 +7,9 @@ import {
 } from "./currency";
 
 describe("formatCurrency", () => {
-  it("formats whole amounts with no minor units", () => {
-    // Use a non-breaking-space-tolerant check: Intl may insert NBSP.
-    const out = formatCurrency(1234, "USD");
-    expect(out.replace(/\s/g, "")).toMatch(/1[.,]234/);
-    expect(out).not.toContain(".00");
+  it("formats amounts with Brazilian centavos", () => {
+    const out = formatCurrency(1234.5, "BRL").replace(/\s/g, "");
+    expect(out).toMatch(/R\$1\.234,50/);
   });
 
   it("defaults to BRL when no currency is given", () => {
@@ -49,18 +47,17 @@ describe("formatCurrency", () => {
 });
 
 describe("formatCurrencyShort", () => {
-  it("abbreviates millions and thousands with the currency symbol", () => {
-    expect(formatCurrencyShort(2_500_000, "USD")).toBe("$2.5M");
-    expect(formatCurrencyShort(3_400, "USD")).toBe("$3.4k");
-    expect(formatCurrencyShort(900, "USD")).toBe("$900");
+  it("abbreviates millions and thousands in Portuguese", () => {
+    expect(formatCurrencyShort(2_500_000, "BRL").replace(/\s/g, "")).toBe("R$2,5mi");
+    expect(formatCurrencyShort(3_400, "BRL").replace(/\s/g, "")).toBe("R$3,4mil");
   });
 
-  it("uses the matching symbol for non-USD currencies", () => {
-    expect(formatCurrencyShort(1_000, "EUR")).toBe("€1.0k");
-    expect(formatCurrencyShort(1_000, "INR")).toBe("₹1.0k");
+  it("uses the matching symbol for non-BRL currencies", () => {
+    expect(formatCurrencyShort(1_000, "EUR").replace(/\s/g, "")).toBe("€1,0mil");
+    expect(formatCurrencyShort(1_000, "INR").replace(/\s/g, "")).toBe("₹1,0mil");
   });
 
   it("falls back to the code prefix for unknown currencies (no throw)", () => {
-    expect(formatCurrencyShort(1_000, "ZZZ")).toBe("ZZZ 1.0k");
+    expect(formatCurrencyShort(1_000, "ZZZ").replace(/\s/g, "")).toContain("1,0mil");
   });
 });
