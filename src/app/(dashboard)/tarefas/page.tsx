@@ -22,7 +22,7 @@ type TaskRow = DealTask & {
   deal?: Pick<Deal, "id" | "title" | "value" | "currency" | "contact_id"> | null;
 };
 
-const KINDS = ["ligacao", "whatsapp", "email"] as const;
+const KINDS = ["ligacao", "whatsapp", "email", "visita"] as const;
 
 export default function TarefasPage() {
   return (
@@ -60,6 +60,7 @@ function TarefasPageInner() {
     setKind(KINDS.includes(kindParam as (typeof KINDS)[number]) ? kindParam : "all");
     setFrom(searchParams.get("from") ?? "");
     setTo(searchParams.get("to") ?? "");
+    setSellerId(searchParams.get("seller") ?? "all");
   }, [queryKey, searchParams]);
 
   const load = useCallback(async () => {
@@ -142,6 +143,7 @@ function TarefasPageInner() {
     if (value === "ligacao") return t("kindCall");
     if (value === "whatsapp") return t("kindWhatsapp");
     if (value === "email") return t("kindEmail");
+    if (value === "visita") return t("kindVisit");
     return t("kindTask");
   }
 

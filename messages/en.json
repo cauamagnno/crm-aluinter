@@ -76,6 +76,7 @@
     "kindCall": "Call",
     "kindWhatsapp": "WhatsApp",
     "kindEmail": "Email",
+    "kindVisit": "Visit",
     "kindTask": "Task",
     "from": "From",
     "to": "To",
@@ -120,6 +121,8 @@
       "description": "Effort and result indicators for the book of business, with targets and RAG status.",
       "descriptionOps": "Day-to-day volume: conversations, queue, pipeline and response time.",
       "descriptionMkt": "Media and campaigns — numbers land when Meta Business Manager is connected.",
+      "mine": "Your metrics",
+      "editGoals": "Goals per seller",
       "activeConversations": "Active Conversations",
       "newContactsToday": "New Contacts Today",
       "openDealsValue": "Open Deals Value",
@@ -222,11 +225,15 @@
     },
     "tasks": {
       "title": "Completed tasks",
-      "source": "Source: tasks completed in the period (deal_tasks.done_at), by type. Call, WhatsApp, and email. Older rows stored as “task” are excluded. The click opens the same list.",
+      "source": "Source: tasks completed in the period (deal_tasks.done_at), by type. Call, WhatsApp, email, and visit. Older rows stored as “task” are excluded. The click opens the same list.",
       "loadError": "Couldn’t load tasks for this period.",
       "call": "Calls",
       "whatsapp": "WhatsApp",
-      "email": "Emails"
+      "email": "Emails",
+      "visit": "Visits",
+      "dailyTarget": "Target: {target} per day",
+      "teamTarget": "Target: {target} per day · sum of {sellers} sellers",
+      "noTarget": "No target set"
     },
     "operacao": {
       "newContacts": "New contacts",
@@ -785,6 +792,8 @@
       "titlePlaceholder": "Deal title",
       "contact": "Contact",
       "selectContact": "Select a contact",
+      "searchCompany": "Search by name",
+      "noCompany": "No company with that name",
       "linkToConversation": "Link to Conversation",
       "value": "Value",
       "currency": "Currency",

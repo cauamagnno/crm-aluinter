@@ -296,11 +296,15 @@ export function DealForm({
                 value={contactId}
                 onValueChange={setContactId}
                 placeholder={t("selectContact")}
+                searchable
+                searchPlaceholder={t("searchCompany")}
+                emptyLabel={t("noCompany")}
                 className="bg-muted"
-                options={[
-                  { value: "", label: t("selectContact") },
-                  ...contacts.map((c) => ({ value: c.id, label: contactCompanyLabel(c) })),
-                ]}
+                options={contacts.map((c) => ({
+                  value: c.id,
+                  label: contactCompanyLabel(c),
+                  keywords: `${c.company ?? ""} ${c.name ?? ""}`,
+                }))}
               />
 
               {linkedConversation && (

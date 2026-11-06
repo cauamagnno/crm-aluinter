@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
-import { LayoutDashboard, Megaphone, Target } from 'lucide-react'
+import Link from 'next/link'
+import { LayoutDashboard, Megaphone, SlidersHorizontal, Target } from 'lucide-react'
 
 import { BrDateInput } from '@/components/ui/br-date-input'
 
@@ -20,6 +21,12 @@ import {
   parseDashboardGoals,
   type DashboardGoals,
 } from '@/lib/dashboard/goals'
+import {
+  parseSellerGoalRows,
+  scopeGoals,
+  type SellerGoalOverride,
+} from '@/lib/dashboard/seller-goals'
+import { hasMinRole } from '@/lib/auth/roles'
 import { loadSalesReport, type SalesReport } from '@/lib/dashboard/sales-report'
 import { loadTaskActivity, type TaskActivity } from '@/lib/dashboard/task-activity'
 import {
@@ -55,8 +62,14 @@ export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
   const tTabs = useTranslations('Dashboard.tabs')
   const tPeriod = useTranslations('Dashboard.period')
-  const { defaultCurrency, accountId } = useAuth()
+  const { defaultCurrency, accountId, accountRole, profile, user } = useAuth()
+  // Gestor, admin and owner see the whole team. A salesperson sees only
+  // their own numbers (the database enforces it too).
+  const isManager = accountRole ? hasMinRole(accountRole, 'gestor') : false
   const [goals, setGoals] = useState<DashboardGoals>(DEFAULT_DASHBOARD_GOALS)
+  const [sellerOverrides, setSellerOverrides] = useState<Map<string, SellerGoalOverride>>(
+    () => new Map(),
+  )
   const [tab, setTab] = useState<DashTab>('gestao')
   const [period, setPeriod] = useState<DashboardPeriod>(() => periodToday())
   const [sellerId, setSellerId] = useState('all')
@@ -152,6 +165,16 @@ export default function DashboardPage() {
   }, [accountId])
 
   useEffect(() => {
+    if (!accountId) return
+    const db = createClient()
+    void db
+      .from('seller_goals')
+      .select('*')
+      .eq('account_id', accountId)
+      .then(({ data }) => setSellerOverrides(parseSellerGoalRows(data)))
+  }, [accountId])
+
+  useEffect(() => {
     const db = createClient()
     void db
       .from('profiles')
@@ -177,14 +200,35 @@ export default function DashboardPage() {
   }, [])
 
   const sellerFilter = useMemo<SellerFilter>(() => {
+    if (!isManager) {
+      return profile ? { profileId: profile.id, userId: user?.id ?? null } : null
+    }
     if (sellerId === 'all') return null
     const selected = sellers.find((seller) => seller.id === sellerId)
     return selected ? { profileId: selected.id, userId: selected.userId } : null
-  }, [sellerId, sellers])
+  }, [isManager, profile, user?.id, sellerId, sellers])
+
+  // Targets for what is on screen: one seller's own, or the team total.
+  const scopedGoals = useMemo(
+    () =>
+      scopeGoals(
+        goals,
+        sellerOverrides,
+        isManager ? sellers.map((seller) => seller.id) : [],
+        sellerFilter,
+      ),
+    [goals, sellerOverrides, isManager, sellers, sellerFilter],
+  )
+  const teamSize = sellerFilter ? 1 : sellers.length
+
+  // A salesperson must never load before their own profile is known,
+  // otherwise the first request would run unfiltered.
+  const ready = Boolean(accountRole) && (isManager || Boolean(profile))
 
   useEffect(() => {
-    loadAll(period, sellerFilter, goals)
-  }, [loadAll, period, sellerFilter, goals])
+    if (!ready) return
+    loadAll(period, sellerFilter, scopedGoals)
+  }, [ready, loadAll, period, sellerFilter, scopedGoals])
 
   return (
     <div className="space-y-5">
@@ -197,11 +241,17 @@ export default function DashboardPage() {
         </div>
         {tab !== 'marketing' ? (
           <div className="flex flex-col gap-2 sm:items-end">
-            <SellerPicker
-              sellerId={sellerId}
-              sellers={sellers}
-              onChange={setSellerId}
-            />
+            {isManager ? (
+              <SellerPicker
+                sellerId={sellerId}
+                sellers={sellers}
+                onChange={setSellerId}
+              />
+            ) : (
+              <span className="inline-flex h-9 items-center rounded-lg border border-border bg-card px-3 text-sm text-foreground">
+                {t('mine')}
+              </span>
+            )}
             <PeriodPicker period={period} onChange={setPeriod} />
           </div>
         ) : null}
@@ -220,19 +270,23 @@ export default function DashboardPage() {
             <LayoutDashboard className="h-4 w-4" />
             {tTabs('operacao')}
           </TabsTrigger>
-          <TabsTrigger value="marketing" className="px-3">
-            <Megaphone className="h-4 w-4" />
-            {tTabs('marketing')}
-          </TabsTrigger>
+          {isManager ? (
+            <TabsTrigger value="marketing" className="px-3">
+              <Megaphone className="h-4 w-4" />
+              {tTabs('marketing')}
+            </TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="gestao" className="mt-5 space-y-5">
           <div className="flex flex-wrap items-center gap-2">
-            <SellerPicker
-              sellerId={sellerId}
-              sellers={sellers}
-              onChange={setSellerId}
-            />
+            {isManager ? (
+              <SellerPicker
+                sellerId={sellerId}
+                sellers={sellers}
+                onChange={setSellerId}
+              />
+            ) : null}
             <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-sm text-foreground">
               <span className="text-xs text-muted-foreground">{tPeriod('day')}</span>
               <BrDateInput
@@ -245,6 +299,15 @@ export default function DashboardPage() {
                 className="h-7 w-[7.5rem] border-0 bg-transparent px-1 shadow-none"
               />
             </label>
+            {isManager ? (
+              <Link
+                href="/settings?tab=goals"
+                className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+                {t('editGoals')}
+              </Link>
+            ) : null}
           </div>
           <SalesReportBar
             report={sales}
@@ -256,13 +319,15 @@ export default function DashboardPage() {
             activity={tasks}
             loading={tasksLoading}
             period={period}
-            goals={goals}
+            goals={scopedGoals}
+            sellerCount={teamSize}
+            sellerId={sellerFilter?.profileId}
           />
           <GestaoPanel
             data={kpis}
             loading={kpisLoading}
             currency={defaultCurrency}
-            goals={goals}
+            goals={scopedGoals}
           />
         </TabsContent>
 

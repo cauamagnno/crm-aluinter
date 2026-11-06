@@ -171,6 +171,7 @@ export function DealTaskForm({
                 { value: "ligacao", label: t("kindCall") },
                 { value: "whatsapp", label: t("kindWhatsapp") },
                 { value: "email", label: t("kindEmail") },
+                { value: "visita", label: t("kindVisita") },
               ]}
             />
           </div>

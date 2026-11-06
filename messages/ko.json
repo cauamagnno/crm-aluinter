@@ -76,6 +76,7 @@
     "kindCall": "전화",
     "kindWhatsapp": "WhatsApp",
     "kindEmail": "이메일",
+    "kindVisit": "방문",
     "kindTask": "할 일",
     "from": "부터",
     "to": "까지",
@@ -120,6 +121,8 @@
       "description": "Effort and result indicators for the book of business, with targets and RAG status.",
       "descriptionOps": "Day-to-day volume: conversations, queue, pipeline and response time.",
       "descriptionMkt": "Media and campaigns — numbers land when Meta Business Manager is connected.",
+      "mine": "내 지표",
+      "editGoals": "판매자별 목표",
       "activeConversations": "진행 중인 대화",
       "newContactsToday": "오늘의 신규 연락처",
       "openDealsValue": "진행 중인 딜 금액",
@@ -222,11 +225,15 @@
     },
     "tasks": {
       "title": "완료한 할 일",
-      "source": "출처: 기간 안에 완료된 할 일(deal_tasks.done_at), 유형별. 전화, WhatsApp, 이메일. 예전 “할 일” 유형은 빠집니다. 클릭하면 같은 목록이 열립니다.",
+      "source": "출처: 기간 안에 완료된 할 일(deal_tasks.done_at), 유형별. 전화, WhatsApp, 이메일, 방문. 예전 “할 일” 유형은 빠집니다. 클릭하면 같은 목록이 열립니다.",
       "loadError": "이 기간의 할 일을 불러오지 못했습니다.",
       "call": "전화",
       "whatsapp": "WhatsApp",
-      "email": "이메일"
+      "email": "이메일",
+      "visit": "방문",
+      "dailyTarget": "목표: 하루 {target}건",
+      "teamTarget": "목표: 하루 {target}건 · 판매자 {sellers}명 합계",
+      "noTarget": "목표 없음"
     },
     "operacao": {
       "newContacts": "New contacts",
@@ -785,6 +792,8 @@
       "titlePlaceholder": "딜 제목",
       "contact": "연락처",
       "selectContact": "연락처 선택",
+      "searchCompany": "이름으로 검색",
+      "noCompany": "해당 이름의 회사가 없습니다",
       "linkToConversation": "대화에 연결",
       "value": "금액",
       "currency": "통화",

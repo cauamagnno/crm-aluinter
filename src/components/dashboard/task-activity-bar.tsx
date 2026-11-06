@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Mail, MessageCircle, Phone } from "lucide-react";
+import { Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { periodInputValues, type DashboardPeriod } from "@/lib/dashboard/period";
 import type { TaskActivity } from "@/lib/dashboard/task-activity";
@@ -16,11 +16,18 @@ export function TaskActivityBar({
   loading,
   period,
   goals = DEFAULT_DASHBOARD_GOALS,
+  sellerCount = 1,
+  sellerId,
 }: {
   activity: TaskActivity | null;
   loading: boolean;
   period: DashboardPeriod;
+  /** Already scoped: one seller's goals, or the team total. */
   goals?: DashboardGoals;
+  /** Sellers behind the target. More than one means a team total. */
+  sellerCount?: number;
+  /** Profile id when the view is a single seller. */
+  sellerId?: string;
 }) {
   const t = useTranslations("Dashboard.tasks");
   const { from, to } = periodInputValues(period);
@@ -41,6 +48,7 @@ export function TaskActivityBar({
     { key: "ligacao" as const, label: t("call"), value: activity.ligacao, icon: Phone, target: goals.callsPerDay },
     { key: "whatsapp" as const, label: t("whatsapp"), value: activity.whatsapp, icon: MessageCircle, target: goals.whatsappPerDay },
     { key: "email" as const, label: t("email"), value: activity.email, icon: Mail, target: goals.emailsPerDay },
+    { key: "visita" as const, label: t("visit"), value: activity.visita, icon: MapPin, target: 0 },
   ];
 
   return (
@@ -49,10 +57,11 @@ export function TaskActivityBar({
         <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
         <p className="text-xs text-muted-foreground">{t("source")}</p>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {items.map((item) => {
           const Icon = item.icon;
-          const href = `/tarefas?status=done&kind=${item.key}&from=${from}&to=${to}&scope=visible`;
+          const seller = sellerId ? `&seller=${sellerId}` : "";
+          const href = `/tarefas?status=done&kind=${item.key}&from=${from}&to=${to}&scope=visible${seller}`;
           return (
             <Link
               key={item.key}
@@ -65,7 +74,11 @@ export function TaskActivityBar({
                   {item.value.toLocaleString("pt-BR")}
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {t("dailyTarget", { target: item.target })}
+                  {item.target === 0
+                    ? t("noTarget")
+                    : sellerCount > 1
+                      ? t("teamTarget", { target: item.target, sellers: sellerCount })
+                      : t("dailyTarget", { target: item.target })}
                 </p>
               </div>
               <Icon className="h-5 w-5 text-muted-foreground" aria-hidden />

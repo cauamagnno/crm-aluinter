@@ -24,6 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SettingsPanelHead } from "./settings-panel-head";
+import { SellerGoalsPanel } from "./seller-goals-panel";
 
 function GoalField({
   id,
@@ -112,6 +113,8 @@ export function GoalsSettings() {
     <section className="max-w-2xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead title={t("title")} description={t("description")} />
       <div className="space-y-4">
+        {canEdit && !loading ? <SellerGoalsPanel defaults={goals} /> : null}
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">

@@ -1,19 +1,20 @@
 import type { SupabaseClient } from "@/lib/db/types";
 import type { DashboardPeriod } from "./period";
 
-export const TASK_KINDS = ["ligacao", "whatsapp", "email"] as const;
+export const TASK_KINDS = ["ligacao", "whatsapp", "email", "visita"] as const;
 export type TaskKind = (typeof TASK_KINDS)[number];
 
 export interface TaskActivity {
   ligacao: number;
   whatsapp: number;
   email: number;
+  visita: number;
 }
 
 /**
  * Completed tasks in the period, split by kind.
  * A task counts when deal_tasks.done_at falls in the interval and kind is
- * ligacao, whatsapp, or email. Older rows stored as "tarefa" stay out.
+ * ligacao, whatsapp, email, or visita. Older rows stored as "tarefa" stay out.
  * RLS decides which tasks the caller can see. The tarefas page, opened
  * with the same dates and scope=visible, lists these same rows.
  */
@@ -33,9 +34,14 @@ export async function loadTaskActivity(
 
   if (error) throw error;
 
-  const counts: TaskActivity = { ligacao: 0, whatsapp: 0, email: 0 };
+  const counts: TaskActivity = { ligacao: 0, whatsapp: 0, email: 0, visita: 0 };
   for (const row of (data ?? []) as { kind: string }[]) {
-    if (row.kind === "ligacao" || row.kind === "whatsapp" || row.kind === "email") {
+    if (
+      row.kind === "ligacao" ||
+      row.kind === "whatsapp" ||
+      row.kind === "email" ||
+      row.kind === "visita"
+    ) {
       counts[row.kind] += 1;
     }
   }
