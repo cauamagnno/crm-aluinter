@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Check, Loader2, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { hasMinRole } from "@/lib/auth/roles";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { localDayKey } from "@/lib/dashboard/date-utils";
@@ -37,6 +38,7 @@ function TarefasPageInner() {
   const searchParams = useSearchParams();
   const scopeVisible = searchParams.get("scope") === "visible";
   const { profile, accountRole, defaultCurrency } = useAuth();
+  const seesAllDeals = accountRole ? hasMinRole(accountRole, "gestor") : false;
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -74,7 +76,7 @@ function TarefasPageInner() {
     if (!scopeVisible) taskQuery = taskQuery.eq("assignee_id", profile.id);
     const [taskRes, dealRes, profileRes] = await Promise.all([
       taskQuery,
-      supabase.from("deals").select("id, title, value, currency, contact_id, pipeline_id, stage_id, status"),
+      supabase.from("deals").select("id, title, value, currency, contact_id, pipeline_id, stage_id, status, assigned_to"),
       supabase.from("profiles").select("*").order("full_name"),
     ]);
     if (taskRes.error) {
@@ -83,10 +85,15 @@ function TarefasPageInner() {
     } else {
       setTasks((taskRes.data ?? []) as TaskRow[]);
     }
-    setDeals((dealRes.data ?? []) as Deal[]);
+    const dealRows = (dealRes.data ?? []) as Deal[];
+    setDeals(
+      seesAllDeals
+        ? dealRows
+        : dealRows.filter((deal) => deal.assigned_to === profile.id),
+    );
     setProfiles((profileRes.data ?? []) as Profile[]);
     setLoading(false);
-  }, [profile?.id, scopeVisible, t]);
+  }, [profile?.id, scopeVisible, seesAllDeals, t]);
 
   useEffect(() => {
     void load();

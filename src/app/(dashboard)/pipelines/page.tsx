@@ -59,6 +59,7 @@ import {
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
+import { hasMinRole } from "@/lib/auth/roles";
 import { GatedButton } from "@/components/ui/gated-button";
 import { useTranslations } from "next-intl";
 import {
@@ -97,7 +98,8 @@ function PipelinesPageInner() {
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
-  const { accountId, accountRole } = useAuth();
+  const { accountId, accountRole, profile } = useAuth();
+  const seesAllDeals = accountRole ? hasMinRole(accountRole, "gestor") : false;
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -458,6 +460,11 @@ function PipelinesPageInner() {
 
   const scopedDeals = useMemo(() => {
     let rows = [...slimDeals];
+    // Closed deals of other sellers are readable for the client history.
+    // The funnel itself stays on this person's own negotiations.
+    if (!seesAllDeals) {
+      rows = rows.filter((d) => d.assigned_to === profile?.id);
+    }
     if (ownerFilter !== "all") {
       rows = rows.filter((d) => d.assigned_to === ownerFilter);
     }
@@ -512,7 +519,7 @@ function PipelinesPageInner() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return rows;
-  }, [slimDeals, ownerFilter, sortFilter, filters, dealQuery]);
+  }, [slimDeals, ownerFilter, sortFilter, filters, dealQuery, seesAllDeals, profile?.id]);
 
   const visibleDeals = useMemo(
     () => scopedDeals.filter((deal) => dealMatchesStatusFilter(deal, statusFilter)),

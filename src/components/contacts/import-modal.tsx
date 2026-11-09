@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   dedupeByPhone,
   isUniqueViolation,
+  normalizeCompanyName,
   normalizeKey,
 } from '@/lib/contacts/dedupe';
 import {
@@ -238,7 +239,7 @@ export function ImportModal({
       //    generated `phone_normalized` column (migration 022) → Set.
       const { data: existingRows } = await supabase
         .from('contacts')
-        .select('phone_normalized')
+        .select('phone_normalized, company_normalized, is_company')
         .eq('account_id', accountId);
       const existing = new Set(
         (existingRows ?? [])
@@ -247,11 +248,28 @@ export function ImportModal({
           )
           .filter((p): p is string => !!p)
       );
+      const existingCompanies = new Set(
+        (existingRows ?? [])
+          .filter((r) => (r as { is_company?: boolean }).is_company)
+          .map(
+            (r) =>
+              (r as { company_normalized: string | null }).company_normalized
+          )
+          .filter((name): name is string => !!name)
+      );
 
       const toInsert = unique.filter((row) => {
         if (existing.has(normalizeKey(row.phone))) {
           skipped++;
           return false;
+        }
+        if (companiesOnly) {
+          const companyKey = normalizeCompanyName(row.company);
+          if (!companyKey || existingCompanies.has(companyKey)) {
+            skipped++;
+            return false;
+          }
+          existingCompanies.add(companyKey);
         }
         return true;
       });
@@ -286,6 +304,7 @@ export function ImportModal({
           name: row.name || (companiesOnly ? row.company : null) || null,
           email: row.email || null,
           company: row.company || null,
+          is_company: companiesOnly,
         }));
 
         const { data, error } = await supabase

@@ -4,6 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import {
+  findExistingCompany,
+  findExistingContact,
+  isCompanyConflict,
+  isExactMatch,
+  isUniqueViolation,
+} from '@/lib/contacts/dedupe';
 import { addContactTag, deleteContactTag } from '@/lib/contacts/tag-api';
 import { useAuth } from '@/hooks/use-auth';
 import { useCan } from '@/hooks/use-can';
@@ -94,6 +101,7 @@ export function ContactDetailView({
   asPage = false,
 }: ContactDetailViewProps) {
   const t = useTranslations('Contacts.detailView');
+  const tForm = useTranslations('Contacts.form');
   const router = useRouter();
   const tTasks = useTranslations('Pipelines.tasks');
   const tStatus = useTranslations('Pipelines.status');
@@ -427,6 +435,31 @@ export function ContactDetailView({
       return;
     }
 
+    if (accountId) {
+      const phoneHit = await findExistingContact(
+        supabase,
+        accountId,
+        editPhone.trim(),
+        contactId,
+      );
+      if (phoneHit && isExactMatch(phoneHit, editPhone.trim())) {
+        toast.error(tForm('toastConflict'));
+        return;
+      }
+      if (contact?.is_company) {
+        const companyHit = await findExistingCompany(
+          supabase,
+          accountId,
+          editCompany.trim(),
+          contactId,
+        );
+        if (companyHit) {
+          toast.error(tForm('toastCompanyConflict'));
+          return;
+        }
+      }
+    }
+
     setSavingDetails(true);
     const { error } = await supabase
       .from('contacts')
@@ -441,7 +474,13 @@ export function ContactDetailView({
       .eq('id', contactId);
 
     if (error) {
-      toast.error(t('toastUpdateFailed'));
+      toast.error(
+        isCompanyConflict(error)
+          ? tForm('toastCompanyConflict')
+          : isUniqueViolation(error)
+            ? tForm('toastConflict')
+            : t('toastUpdateFailed'),
+      );
     } else {
       toast.success(t('toastUpdated'));
       fetchContact();

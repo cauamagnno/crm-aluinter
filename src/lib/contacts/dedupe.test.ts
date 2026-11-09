@@ -3,8 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   dedupeByPhone,
   findExistingContact,
+  isCompanyConflict,
   isExactMatch,
   isUniqueViolation,
+  normalizeCompanyName,
   normalizeKey,
 } from "./dedupe";
 
@@ -31,6 +33,40 @@ describe("isExactMatch", () => {
     expect(isExactMatch({ id: "1", phone: "37063949836" }, "370063949836")).toBe(
       false,
     );
+  });
+});
+
+describe("normalizeCompanyName", () => {
+  it("folds accents, case and extra spaces", () => {
+    expect(normalizeCompanyName("  Clínica   Odonto ")).toBe("clinica odonto");
+    expect(normalizeCompanyName("Padaria Real")).toBe(
+      normalizeCompanyName("padaria real"),
+    );
+  });
+
+  it("is empty when there is no name", () => {
+    expect(normalizeCompanyName("   ")).toBe("");
+    expect(normalizeCompanyName(null)).toBe("");
+  });
+});
+
+describe("isCompanyConflict", () => {
+  it("detects the company unique index", () => {
+    expect(
+      isCompanyConflict({
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "idx_contacts_account_company"',
+      }),
+    ).toBe(true);
+  });
+
+  it("ignores the phone unique index", () => {
+    expect(
+      isCompanyConflict({
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "idx_contacts_account_phone_normalized"',
+      }),
+    ).toBe(false);
   });
 });
 

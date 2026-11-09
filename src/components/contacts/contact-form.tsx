@@ -8,7 +8,9 @@ import { toast } from 'sonner';
 import { FieldSelect } from '@/components/ui/field-select';
 import type { Contact, Tag, ContactTag } from '@/types';
 import {
+  findExistingCompany,
   findExistingContact,
+  isCompanyConflict,
   isExactMatch,
   isUniqueViolation,
   type ExistingContact,
@@ -160,15 +162,36 @@ export function ContactForm({
       return;
     }
 
-    // Hard-block an exact duplicate on create (the DB unique index is
-    // the real backstop; this avoids a round-trip + a raw error toast).
-    if (!isEdit && dupMatch?.exact) {
-      toast.error(t('toastConflict'));
-      return;
-    }
     if (intent === 'company' && !company.trim()) {
       toast.error(t('companyRequired'));
       return;
+    }
+
+    const savingCompany = intent === 'company' || Boolean(contact?.is_company);
+    if (accountId) {
+      const phoneHit = await findExistingContact(
+        supabase,
+        accountId,
+        phone.trim(),
+        contact?.id,
+      );
+      if (phoneHit && isExactMatch(phoneHit, phone.trim())) {
+        setDupMatch({ contact: phoneHit, exact: true });
+        toast.error(t('toastConflict'));
+        return;
+      }
+      if (savingCompany) {
+        const companyHit = await findExistingCompany(
+          supabase,
+          accountId,
+          company.trim(),
+          contact?.id,
+        );
+        if (companyHit) {
+          toast.error(t('toastCompanyConflict'));
+          return;
+        }
+      }
     }
 
     setSaving(true);
@@ -207,6 +230,7 @@ export function ContactForm({
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            is_company: intent === 'company',
             assigned_to: assignedTo || profile?.id || null,
           })
           .select('id')
@@ -239,6 +263,10 @@ export function ContactForm({
       // slipped past the on-blur check (race, or a format that
       // normalizes equal). Surface it as the friendly duplicate notice
       // and, for new contacts, point the user at the existing record.
+      if (isCompanyConflict(err)) {
+        toast.error(t('toastCompanyConflict'));
+        return;
+      }
       if (isUniqueViolation(err)) {
         toast.error(t('toastConflict'));
         if (!isEdit && accountId) {

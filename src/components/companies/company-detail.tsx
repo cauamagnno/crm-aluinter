@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
+import { findExistingCompany } from "@/lib/contacts/dedupe";
 import { useAuth } from "@/hooks/use-auth";
 import { DEFAULT_CURRENCY, formatCurrency } from "@/lib/currency";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
@@ -344,6 +345,13 @@ export function CompanyDetail({ contactId }: { contactId: string }) {
 
   async function saveProfile(nextOwnerId = ownerId) {
     if (!contact || !company.trim()) return;
+    if (accountId && contact.is_company !== false) {
+      const existing = await findExistingCompany(supabase, accountId, company, contact.id);
+      if (existing) {
+        toast.error(t("companyExists"));
+        return;
+      }
+    }
     setSaving(true);
     const { error } = await supabase
       .from("contacts")

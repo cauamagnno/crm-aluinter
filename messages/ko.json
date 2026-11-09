@@ -621,6 +621,7 @@
       "toastSuccessEdit": "연락처가 업데이트되었습니다",
       "toastError": "연락처를 저장하지 못했습니다",
       "toastConflict": "이 전화번호를 가진 연락처가 이미 있습니다",
+      "toastCompanyConflict": "이 이름의 회사가 이미 있습니다",
       "viewExisting": "{name} 보기",
       "dupExact": "이 전화번호를 가진 연락처가 이미 있습니다.",
       "dupSimilar": "매우 유사한 번호를 가진 연락처가 이미 있습니다.",

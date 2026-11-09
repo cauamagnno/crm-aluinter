@@ -621,6 +621,7 @@
       "toastSuccessEdit": "Contact updated successfully",
       "toastError": "Failed to save contact",
       "toastConflict": "A contact with this phone number already exists",
+      "toastCompanyConflict": "A company with this name already exists",
       "viewExisting": "View {name}",
       "dupExact": "A contact with this phone number already exists.",
       "dupSimilar": "A contact with a very similar number already exists.",

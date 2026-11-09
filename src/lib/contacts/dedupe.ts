@@ -36,6 +36,7 @@ export async function findExistingContact(
   db: SupabaseClient,
   accountId: string,
   phone: string,
+  exceptId?: string,
 ): Promise<ExistingContact | null> {
   const normalized = normalizePhone(phone);
   if (!normalized) return null;
@@ -51,8 +52,48 @@ export async function findExistingContact(
   if (error || !data) return null;
 
   return (
-    (data as ExistingContact[]).find((c) => phonesMatch(c.phone, phone)) ?? null
+    (data as ExistingContact[]).find(
+      (c) => c.id !== exceptId && phonesMatch(c.phone, phone),
+    ) ?? null
   );
+}
+
+const COMPANY_FROM = "ÁÀÂÃÄáàâãäÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÕÖóòôõöÚÙÛÜúùûüÇçÑñ";
+const COMPANY_TO = "AAAAAaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuCcNn";
+
+/**
+ * Company identity: trimmed, accents folded, inner spaces collapsed,
+ * lowercased. Matches `normalize_company_name` in the database.
+ */
+export function normalizeCompanyName(value: string | null | undefined): string {
+  if (!value) return "";
+  let folded = "";
+  for (const char of value) {
+    const at = COMPANY_FROM.indexOf(char);
+    folded += at >= 0 ? COMPANY_TO[at] : char;
+  }
+  return folded.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** The company record that already uses this name, if any. */
+export async function findExistingCompany(
+  db: SupabaseClient,
+  accountId: string,
+  company: string,
+  exceptId?: string,
+): Promise<ExistingContact | null> {
+  const key = normalizeCompanyName(company);
+  if (!key) return null;
+
+  const { data, error } = await db
+    .from("contacts")
+    .select("*")
+    .eq("account_id", accountId)
+    .eq("is_company", true)
+    .eq("company_normalized", key);
+
+  if (error || !data) return null;
+  return (data as ExistingContact[]).find((row) => row.id !== exceptId) ?? null;
 }
 
 /**
@@ -72,6 +113,13 @@ export function isExactMatch(existing: ExistingContact, phone: string): boolean 
 export function isUniqueViolation(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   return (error as { code?: string }).code === "23505";
+}
+
+/** Unique violation on the company-name index, not the phone index. */
+export function isCompanyConflict(error: unknown): boolean {
+  if (!isUniqueViolation(error)) return false;
+  const row = error as { message?: string; details?: string };
+  return /idx_contacts_account_company/i.test(`${row.message ?? ""} ${row.details ?? ""}`);
 }
 
 /**

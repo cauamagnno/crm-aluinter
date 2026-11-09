@@ -152,6 +152,7 @@ export function ContactsDirectory({
         p_search: term || null,
         p_limit: PAGE_SIZE,
         p_offset: from,
+        p_companies: companies,
       });
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
       if (error) {
@@ -161,7 +162,9 @@ export function ContactsDirectory({
       }
       const rows = (data ?? []) as { contact: Contact; total_count: number }[];
       contactRows = rows.map((r) => r.contact);
-      if (companies) contactRows = contactRows.filter((row) => row.company?.trim());
+      if (companies) {
+        contactRows = contactRows.filter((row) => row.is_company && row.company?.trim());
+      }
       count = rows.length > 0 ? Number(rows[0].total_count) : 0;
     } else {
       let query = supabase
@@ -171,7 +174,7 @@ export function ContactsDirectory({
         .range(from, to);
 
       if (companies) {
-        query = query.not('company', 'is', null).neq('company', '');
+        query = query.eq('is_company', true).not('company', 'is', null).neq('company', '');
       }
 
       if (term) {
