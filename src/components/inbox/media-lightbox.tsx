@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft,
   ChevronRight,
@@ -116,7 +117,7 @@ export function MediaLightbox({
   if (!item) return null;
 
   const authorLabel = item.fromCustomer ? contactLabel : t("you");
-  const timestamp = format(new Date(item.createdAt), "MMM d, yyyy HH:mm");
+  const timestamp = format(new Date(item.createdAt), "d 'de' MMM 'de' yyyy HH:mm", { locale: ptBR });
 
   return (
     <Dialog

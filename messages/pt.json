@@ -487,13 +487,16 @@
       "filterOpen": "Abertas",
       "filterPending": "Pendentes",
       "filterClosed": "Fechadas",
-      "tags": "Tags",
+      "tags": "Etiquetas",
       "company": "Empresa",
       "allCompanies": "Todas as empresas",
       "clearAll": "Limpar tudo",
       "noConversations": "Nenhuma conversa encontrada",
       "noMessagesYet": "Nenhuma mensagem ainda",
-      "unknown": "Desconhecido"
+      "unknown": "Desconhecido",
+      "statusOpen": "Aberta",
+      "statusPending": "Pendente",
+      "statusClosed": "Fechada"
     },
     "messageThread": {
       "backToConversations": "Voltar às conversas",
@@ -1836,7 +1839,8 @@
       "appearance": "Modo {mode} · destaque {theme}",
       "yourAccount": "Sua conta",
       "loading": "Carregando…",
-      "goalsHint": "Metas diárias, semanais e mensais do painel"
+      "goalsHint": "Metas diárias, semanais e mensais do painel",
+      "integrationsHint": "Webhook chamado quando chega uma mensagem"
     },
     "members": {
       "title": "Membros da equipe",
@@ -2065,6 +2069,11 @@
       "apiCredentialsDesc": "Informe as credenciais da API do WhatsApp Business da Meta.",
       "phoneNumberId": "ID do número de telefone",
       "wabaId": "ID da conta WhatsApp Business",
+      "metaAppId": "Meta App ID",
+      "metaAppIdHint": "Número do app em Configurações do app → Básico.",
+      "metaAppSecret": "Meta App Secret",
+      "metaAppSecretPlaceholder": "Cole o App Secret",
+      "metaAppSecretHint": "A Meta assina os eventos do webhook com esse valor. Depois de salvo ele fica oculto.",
       "accessToken": "Token de acesso permanente",
       "accessTokenPlaceholder": "Cole o token de acesso",
       "tokenHidden": "O token fica oculto por segurança. Informe de novo para atualizar a configuração.",
@@ -2124,6 +2133,7 @@
       "deals": "Negócios",
       "goals": "Metas",
       "members": "Equipe",
+      "integrations": "Integrações",
       "api": "Chaves de API"
     },
     "groups": {
@@ -2289,6 +2299,23 @@
       "saveFailed": "Falha ao salvar as metas",
       "saveSuccess": "Metas atualizadas",
       "readOnly": "Somente gestor, admin ou dono podem alterar as metas."
+    },
+    "integrations": {
+      "title": "Integrações",
+      "description": "Envie cada mensagem recebida no WhatsApp para um webhook.",
+      "urlLabel": "URL do webhook",
+      "urlHint": "Use um endereço https público. O CRM envia o JSON da mensagem recebida.",
+      "whenLabel": "Quando enviar",
+      "whenOff": "Não enviar",
+      "whenInbound": "Sempre que mandarem uma mensagem",
+      "whenHint": "Dispara ao chegar uma mensagem do cliente no WhatsApp.",
+      "save": "Salvar integração",
+      "saving": "Salvando...",
+      "saveFailed": "Falha ao salvar a integração",
+      "saveSuccess": "Integração atualizada",
+      "invalidUrl": "Informe uma URL https válida",
+      "loadFailed": "Falha ao carregar a integração",
+      "readOnly": "Somente admin ou dono podem alterar as integrações."
     },
     "quickReplies": {
       "title": "Respostas rápidas",

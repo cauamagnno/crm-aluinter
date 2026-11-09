@@ -3,6 +3,7 @@ import {
   FileText,
   KeyRound,
   LayoutGrid,
+  Webhook,
   Palette,
   PlugZap,
   Shield,
@@ -34,6 +35,7 @@ export const SETTINGS_SECTIONS = [
   'deals',
   'goals',
   'members',
+  'integrations',
   'api',
 ] as const;
 
@@ -61,6 +63,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   deals: { id: 'deals', label: 'Negócios', icon: Coins, group: 'workspace' },
   goals: { id: 'goals', label: 'Metas', icon: Target, group: 'workspace' },
   members: { id: 'members', label: 'Equipe', icon: UsersRound, group: 'workspace' },
+  integrations: { id: 'integrations', label: 'Integrações', icon: Webhook, group: 'workspace' },
   api: { id: 'api', label: 'Chaves de API', icon: KeyRound, group: 'workspace' },
 };
 

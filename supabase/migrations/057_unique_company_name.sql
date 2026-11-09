@@ -28,30 +28,79 @@ $$;
 
 ALTER FUNCTION public.normalize_company_name(text) OWNER TO postgres;
 
+-- A STORED generated column rewrites every contact row and keeps the
+-- regex on the write path. The window UPDATE below used to sort the
+-- whole table while calling that regex per row, which exhausted the
+-- database memory and blocked the reads the CRM screens need. The
+-- column is plain text, filled in small id-ordered pages instead.
+--
+-- Cap the sort memory for this session so a later index build cannot
+-- grab the whole host either.
+SET work_mem = '4MB';
+SET maintenance_work_mem = '32MB';
+SET max_parallel_workers_per_gather = 0;
+SET lock_timeout = '5s';
+
 ALTER TABLE contacts
   ADD COLUMN IF NOT EXISTS is_company BOOLEAN NOT NULL DEFAULT false;
 
 ALTER TABLE contacts
-  ADD COLUMN IF NOT EXISTS company_normalized TEXT
-  GENERATED ALWAYS AS (public.normalize_company_name(company)) STORED;
+  ADD COLUMN IF NOT EXISTS company_normalized TEXT;
 
--- The oldest row of each name becomes the company. Later rows with the
--- same name stay as people at that company.
-WITH ranked AS (
-  SELECT id,
-         row_number() OVER (
-           PARTITION BY account_id, public.normalize_company_name(company)
-           ORDER BY created_at, id
-         ) AS n
-  FROM contacts
-  WHERE public.normalize_company_name(company) IS NOT NULL
-)
-UPDATE contacts AS c
-SET is_company = true
-FROM ranked AS r
-WHERE c.id = r.id
-  AND r.n = 1
-  AND NOT c.is_company;
+-- Pages of 500 by primary key. Each statement hashes a few hundred
+-- rows and releases that memory before the next page.
+DO $$
+DECLARE
+  last_id uuid := '00000000-0000-0000-0000-000000000000';
+  page_max uuid;
+  moved int;
+BEGIN
+  LOOP
+    SELECT id INTO page_max
+    FROM (
+      SELECT id
+      FROM contacts
+      WHERE id > last_id
+      ORDER BY id
+      LIMIT 500
+    ) page
+    ORDER BY id DESC
+    LIMIT 1;
+    EXIT WHEN page_max IS NULL;
+
+    UPDATE contacts
+    SET company_normalized = public.normalize_company_name(company)
+    WHERE id > last_id
+      AND id <= page_max
+      AND company_normalized IS DISTINCT FROM public.normalize_company_name(company);
+
+    last_id := page_max;
+  END LOOP;
+
+  LOOP
+    WITH picked AS (
+      SELECT account_id, company_normalized
+      FROM contacts
+      WHERE company_normalized IS NOT NULL
+      GROUP BY account_id, company_normalized
+      HAVING bool_or(is_company) = false
+      LIMIT 100
+    ),
+    winners AS (
+      SELECT DISTINCT ON (c.account_id, c.company_normalized) c.id
+      FROM contacts c
+      JOIN picked p
+        ON p.account_id = c.account_id
+       AND p.company_normalized = c.company_normalized
+      ORDER BY c.account_id, c.company_normalized, c.created_at, c.id
+    )
+    UPDATE contacts
+    SET is_company = true
+    WHERE id IN (SELECT id FROM winners);
+    GET DIAGNOSTICS moved = ROW_COUNT;
+    EXIT WHEN moved = 0;
+  END LOOP;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_account_company
   ON contacts (account_id, company_normalized)

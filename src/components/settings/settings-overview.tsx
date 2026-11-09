@@ -205,6 +205,11 @@ export function SettingsOverview({
       subtitle: t('goalsHint'),
     },
     {
+      section: 'integrations',
+      loading: false,
+      subtitle: t('integrationsHint'),
+    },
+    {
       section: 'fields',
       loading: countsLoading,
       subtitle:

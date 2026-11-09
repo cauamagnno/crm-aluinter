@@ -183,6 +183,10 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const { phone_number_id, waba_id, access_token, verify_token, pin } = body
+    const metaAppId =
+      typeof body.meta_app_id === 'string' ? body.meta_app_id.trim() : ''
+    const metaAppSecret =
+      typeof body.meta_app_secret === 'string' ? body.meta_app_secret.trim() : ''
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
@@ -198,6 +202,13 @@ export async function POST(request: Request) {
           { status: 400 }
         )
       }
+    }
+
+    if (metaAppId && !/^\d{5,32}$/.test(metaAppId)) {
+      return NextResponse.json(
+        { error: 'Meta App ID must be the numeric ID from the Meta app.' },
+        { status: 400 }
+      )
     }
 
     // Reject if another account has already claimed this phone_number_id.
@@ -251,9 +262,11 @@ export async function POST(request: Request) {
     // Encrypt sensitive tokens before storing
     let encryptedAccessToken: string
     let encryptedVerifyToken: string | null
+    let encryptedAppSecret: string | null = null
     try {
       encryptedAccessToken = encrypt(access_token)
       encryptedVerifyToken = verify_token ? encrypt(verify_token) : null
+      if (metaAppSecret) encryptedAppSecret = encrypt(metaAppSecret)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown encryption error'
       console.error('Encryption failed:', message)
@@ -271,7 +284,7 @@ export async function POST(request: Request) {
     // /register when the user didn't provide a PIN this time around.
     const { data: existing } = await supabase
       .from('whatsapp_config')
-      .select('id, registered_at, phone_number_id')
+      .select('id, registered_at, phone_number_id, meta_app_secret')
       .eq('account_id', accountId)
       .maybeSingle()
 
@@ -360,6 +373,8 @@ export async function POST(request: Request) {
       registered_at: registrationError ? null : registeredAt,
       subscribed_apps_at: subscribedAppsAt ?? null,
       last_registration_error: registrationError,
+      meta_app_id: metaAppId || null,
+      meta_app_secret: encryptedAppSecret ?? existing?.meta_app_secret ?? null,
       updated_at: new Date().toISOString(),
     }
 

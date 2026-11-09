@@ -23,10 +23,75 @@ function parseFilter(raw?: string): { column: string; value: string } | null {
   return { column: m[1], value: m[2] };
 }
 
+interface RealtimeSubscriber {
+  onOpen: () => void;
+  onError: () => void;
+  onMessage: (data: string) => void;
+}
+
+/**
+ * One shared `EventSource` per browser tab.
+ *
+ * Browsers cap concurrent HTTP/1.1 connections per origin at 6, and an
+ * SSE stream holds its connection open forever. The app opens several
+ * realtime channels at once (presence, notifications, unread counts,
+ * inbox messages, reactions), so giving each channel its own stream used
+ * up the whole budget — a second tab was enough to starve every ordinary
+ * `fetch`, and sends sat queued in the browser without ever reaching the
+ * server. Channels now multiplex over a single stream and filter events
+ * client-side; the stream opens with the first subscriber and closes
+ * with the last.
+ */
+class SharedRealtime {
+  private source: EventSource | null = null;
+  private readonly subscribers = new Set<RealtimeSubscriber>();
+  private connected = false;
+
+  add(sub: RealtimeSubscriber) {
+    this.subscribers.add(sub);
+    if (!this.source) {
+      this.connect();
+    } else if (this.connected) {
+      queueMicrotask(() => {
+        if (this.subscribers.has(sub)) sub.onOpen();
+      });
+    }
+  }
+
+  remove(sub: RealtimeSubscriber) {
+    this.subscribers.delete(sub);
+    if (this.subscribers.size === 0) this.disconnect();
+  }
+
+  private connect() {
+    const source = new EventSource("/api/realtime");
+    this.source = source;
+    source.onopen = () => {
+      this.connected = true;
+      for (const sub of [...this.subscribers]) sub.onOpen();
+    };
+    source.onerror = () => {
+      this.connected = false;
+      for (const sub of [...this.subscribers]) sub.onError();
+    };
+    source.onmessage = (ev) => {
+      for (const sub of [...this.subscribers]) sub.onMessage(ev.data);
+    };
+  }
+
+  private disconnect() {
+    this.source?.close();
+    this.source = null;
+    this.connected = false;
+  }
+}
+
+const sharedRealtime = new SharedRealtime();
+
 class BrowserChannel implements RealtimeChannel {
   private listeners: Array<{ filter: RealtimeFilter; cb: RealtimeCallback }> =
     [];
-  private source: EventSource | null = null;
+  private subscriber: RealtimeSubscriber | null = null;
 
   constructor(private readonly name: string) {}
 
@@ -40,50 +105,51 @@ class BrowserChannel implements RealtimeChannel {
   }
 
   subscribe(status?: (s: string) => void): RealtimeChannel {
-    const tables = [
-      ...new Set(this.listeners.map((l) => l.filter.table).filter(Boolean)),
-    ];
-    const url = `/api/realtime?tables=${encodeURIComponent(tables.join(","))}&ch=${encodeURIComponent(this.name)}`;
-    this.source = new EventSource(url);
-    this.source.onopen = () => status?.("SUBSCRIBED");
-    this.source.onerror = () => status?.("CHANNEL_ERROR");
-    this.source.onmessage = (ev) => {
-      try {
-        const payload = JSON.parse(ev.data) as {
-          eventType: "INSERT" | "UPDATE" | "DELETE";
-          schema: string;
-          table: string;
-          new: Record<string, unknown>;
-          old: Record<string, unknown>;
-        };
-        for (const listener of this.listeners) {
-          if (listener.filter.table && listener.filter.table !== payload.table) {
-            continue;
-          }
-          if (
-            listener.filter.event !== "*" &&
-            listener.filter.event !== payload.eventType
-          ) {
-            continue;
-          }
-          const parsed = parseFilter(listener.filter.filter);
-          if (parsed) {
-            const row =
-              payload.eventType === "DELETE" ? payload.old : payload.new;
-            if (String(row?.[parsed.column]) !== parsed.value) continue;
-          }
-          listener.cb(payload);
-        }
-      } catch {
-        // ignore malformed events
-      }
+    if (this.subscriber) sharedRealtime.remove(this.subscriber);
+    this.subscriber = {
+      onOpen: () => status?.("SUBSCRIBED"),
+      onError: () => status?.("CHANNEL_ERROR"),
+      onMessage: (data) => this.dispatch(data),
     };
+    sharedRealtime.add(this.subscriber);
     return this;
   }
 
+  private dispatch(data: string) {
+    try {
+      const payload = JSON.parse(data) as {
+        eventType: "INSERT" | "UPDATE" | "DELETE";
+        schema: string;
+        table: string;
+        new: Record<string, unknown>;
+        old: Record<string, unknown>;
+      };
+      for (const listener of this.listeners) {
+        if (listener.filter.table && listener.filter.table !== payload.table) {
+          continue;
+        }
+        if (
+          listener.filter.event !== "*" &&
+          listener.filter.event !== payload.eventType
+        ) {
+          continue;
+        }
+        const parsed = parseFilter(listener.filter.filter);
+        if (parsed) {
+          const row =
+            payload.eventType === "DELETE" ? payload.old : payload.new;
+          if (String(row?.[parsed.column]) !== parsed.value) continue;
+        }
+        listener.cb(payload);
+      }
+    } catch {
+      // ignore malformed events
+    }
+  }
+
   unsubscribe() {
-    this.source?.close();
-    this.source = null;
+    if (this.subscriber) sharedRealtime.remove(this.subscriber);
+    this.subscriber = null;
   }
 }
 

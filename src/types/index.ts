@@ -309,6 +309,8 @@ export interface WhatsAppConfig {
    * inbound attachments expire. Migration 039.
    */
   mirror_inbound_media?: boolean;
+  /** Numeric Meta app id. The App Secret is stored encrypted and is not sent to the browser. */
+  meta_app_id?: string | null;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)

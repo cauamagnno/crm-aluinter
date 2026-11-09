@@ -72,6 +72,10 @@ export function WhatsAppConfig() {
 
   const [phoneNumberId, setPhoneNumberId] = useState('');
   const [wabaId, setWabaId] = useState('');
+  const [metaAppId, setMetaAppId] = useState('');
+  const [metaAppSecret, setMetaAppSecret] = useState('');
+  const [showAppSecret, setShowAppSecret] = useState(false);
+  const [appSecretEdited, setAppSecretEdited] = useState(false);
   const [accessToken, setAccessToken] = useState('');
   const [verifyToken, setVerifyToken] = useState('');
   const [pin, setPin] = useState('');
@@ -131,9 +135,14 @@ export function WhatsAppConfig() {
       }
 
       if (data) {
-        setConfig(data);
+        const { meta_app_secret: storedSecret, ...safe } = data;
+        setConfig(safe);
         setPhoneNumberId(data.phone_number_id || '');
         setWabaId(data.waba_id || '');
+        setMetaAppId(data.meta_app_id || '');
+        setMetaAppSecret(storedSecret ? MASKED_TOKEN : '');
+        setAppSecretEdited(false);
+        setShowAppSecret(false);
         setAccessToken(MASKED_TOKEN);
         setVerifyToken('');
         setPin('');
@@ -145,6 +154,10 @@ export function WhatsAppConfig() {
         setConfig(null);
         setPhoneNumberId('');
         setWabaId('');
+        setMetaAppId('');
+        setMetaAppSecret('');
+        setAppSecretEdited(false);
+        setShowAppSecret(false);
         setAccessToken('');
         setVerifyToken('');
         setPin('');
@@ -251,7 +264,16 @@ export function WhatsAppConfig() {
         // requires it on first save or when changing numbers; for a
         // simple token rotation, leaving it blank skips re-register.
         pin: pin.trim() || null,
+        meta_app_id: metaAppId.trim() || null,
       };
+
+      if (
+        appSecretEdited &&
+        metaAppSecret !== MASKED_TOKEN &&
+        metaAppSecret.trim()
+      ) {
+        payload.meta_app_secret = metaAppSecret.trim();
+      }
 
       if (tokenEdited && accessToken !== MASKED_TOKEN && accessToken.trim()) {
         payload.access_token = accessToken.trim();
@@ -625,6 +647,56 @@ export function WhatsAppConfig() {
                 onChange={(e) => setWabaId(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-muted-foreground" htmlFor="meta-app-id">
+                {t('metaAppId')}
+              </Label>
+              <Input
+                id="meta-app-id"
+                inputMode="numeric"
+                placeholder="e.g. 123456789012345"
+                value={metaAppId}
+                onChange={(e) => setMetaAppId(e.target.value.replace(/\D/g, ''))}
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+              />
+              <p className="text-xs text-muted-foreground">{t('metaAppIdHint')}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-muted-foreground" htmlFor="meta-app-secret">
+                {t('metaAppSecret')}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="meta-app-secret"
+                  type={showAppSecret ? 'text' : 'password'}
+                  placeholder={t('metaAppSecretPlaceholder')}
+                  value={metaAppSecret}
+                  onChange={(e) => {
+                    setMetaAppSecret(e.target.value);
+                    setAppSecretEdited(true);
+                  }}
+                  onFocus={() => {
+                    if (metaAppSecret === MASKED_TOKEN) {
+                      setMetaAppSecret('');
+                      setAppSecretEdited(true);
+                    }
+                  }}
+                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground pr-10"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAppSecret(!showAppSecret)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showAppSecret ? 'Ocultar App Secret' : 'Mostrar App Secret'}
+                >
+                  {showAppSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">{t('metaAppSecretHint')}</p>
             </div>
 
             <div className="space-y-2">

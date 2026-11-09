@@ -65,5 +65,13 @@ describe("verifyMetaWebhookSignature", () => {
       const header = signedHeader(body, originalSecret!);
       expect(verifyMetaWebhookSignature(body, header)).toBe(false);
     });
+
+    it("accepts a signature made with the secret saved on the WhatsApp config", () => {
+      const body = "{}";
+      const saved = "app-secret-from-settings";
+      expect(
+        verifyMetaWebhookSignature(body, signedHeader(body, saved), saved),
+      ).toBe(true);
+    });
   });
 });

@@ -10,6 +10,7 @@ import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
+import { dispatchInboundMessageWebhook } from '@/lib/integrations/message-webhook'
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -181,8 +182,9 @@ export async function POST(request: Request) {
   // signed. request.json() would re-encode and break the signature.
   const rawBody = await request.text()
   const signature = request.headers.get('x-hub-signature-256')
+  const appSecret = await appSecretForWebhook(rawBody)
 
-  if (!verifyMetaWebhookSignature(rawBody, signature)) {
+  if (!verifyMetaWebhookSignature(rawBody, signature, appSecret)) {
     // 401 (not 200) — we want Meta's delivery dashboard to show failures
     // loudly if a misconfiguration causes signatures to stop matching,
     // rather than silently eating events.
@@ -220,6 +222,51 @@ export async function POST(request: Request) {
   })
 
   return NextResponse.json({ status: 'received' }, { status: 200 })
+}
+
+/**
+ * App Secret saved on the WhatsApp number that owns this payload.
+ * Null when the row has none, so verification falls back to
+ * META_APP_SECRET. The body is not trusted until the signature matches.
+ */
+async function appSecretForWebhook(rawBody: string): Promise<string | null> {
+  const phoneNumberId = phoneNumberIdFromPayload(rawBody)
+  if (!phoneNumberId) return null
+
+  const { data, error } = await supabaseAdmin()
+    .from('whatsapp_config')
+    .select('meta_app_secret')
+    .eq('phone_number_id', phoneNumberId)
+
+  if (error || !data?.length) return null
+  const stored = data[0]?.meta_app_secret as string | null | undefined
+  if (!stored) return null
+
+  try {
+    return decrypt(stored)
+  } catch (err) {
+    console.error('[webhook] stored Meta App Secret could not be decrypted:', err)
+    return null
+  }
+}
+
+function phoneNumberIdFromPayload(rawBody: string): string | null {
+  try {
+    const body = JSON.parse(rawBody) as {
+      entry?: {
+        changes?: { value?: { metadata?: { phone_number_id?: string } } }[]
+      }[]
+    }
+    for (const entry of body.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        const id = change.value?.metadata?.phone_number_id
+        if (typeof id === 'string' && id) return id
+      }
+    }
+  } catch {
+    return null
+  }
+  return null
 }
 
 async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
@@ -875,6 +922,17 @@ async function processMessage(
     whatsapp_message_id: message.id,
     content_type: contentType,
     text: contentText,
+  })
+
+  await dispatchInboundMessageWebhook(supabaseAdmin(), {
+    accountId,
+    contactId: contactRecord.id,
+    conversationId: conversation.id,
+    externalId: message.id,
+    contentType,
+    text: contentText,
+    mediaUrl,
+    createdAt: new Date(parseInt(message.timestamp) * 1000).toISOString(),
   })
 }
 

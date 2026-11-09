@@ -18,6 +18,7 @@ import { DealsSettings } from '@/components/settings/deals-settings';
 import { GoalsSettings } from '@/components/settings/goals-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
+import { IntegrationsSettings } from '@/components/settings/integrations-settings';
 import {
   resolveSection,
   type SettingsSection,
@@ -81,6 +82,7 @@ function SettingsPageInner() {
     deals: <DealsSettings />,
     goals: <GoalsSettings />,
     members: <MembersTab />,
+    integrations: <IntegrationsSettings />,
     api: <ApiKeysSettings />,
   };
 
