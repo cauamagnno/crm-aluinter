@@ -19,6 +19,8 @@ export const API_SCOPES = [
   'contacts:read',
   'contacts:write',
   'conversations:read',
+  'conversations:write',
+  'deals:write',
   'broadcasts:send',
   'webhooks:manage',
 ] as const;
@@ -32,6 +34,8 @@ export const SCOPE_DESCRIPTIONS: Record<ApiScope, string> = {
   'contacts:read': 'List and read contacts',
   'contacts:write': 'Create and update contacts',
   'conversations:read': 'List and read conversations',
+  'conversations:write': 'Assign and resolve conversations',
+  'deals:write': 'Move deals, update the open card, and write its notes',
   'broadcasts:send': 'Launch broadcast campaigns',
   'webhooks:manage': 'Register and manage outbound event webhooks',
 };
@@ -72,4 +76,17 @@ export function hasScope(
   required: ApiScope
 ): boolean {
   return granted.includes(required);
+}
+
+/**
+ * The AI agent already sends with `messages:send`. The board endpoints
+ * accept that key as well as the narrower write scopes, so an existing
+ * agent key keeps working without being reissued.
+ */
+export function canOperateAgentBoard(granted: readonly string[]): boolean {
+  return (
+    hasScope(granted, 'deals:write') ||
+    hasScope(granted, 'conversations:write') ||
+    hasScope(granted, 'messages:send')
+  );
 }
