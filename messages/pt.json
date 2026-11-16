@@ -1035,6 +1035,8 @@
       "saving": "Salvando...",
       "required": "Assunto, responsável e data são obrigatórios",
       "created": "Tarefa criada",
+      "createdLogged": "{name} agendou a tarefa {title} ({kind}).",
+      "createdDescription": "Descrição: {description}",
       "failed": "Falha ao criar a tarefa",
       "completed": "Tarefa concluída",
       "completeFailed": "Falha ao concluir a tarefa",
@@ -1050,7 +1052,7 @@
       "corrected": "Tarefa corrigida",
       "correctFailed": "Falha ao corrigir a tarefa",
       "correctionLogged": "{name} corrigiu a tarefa: {from} → {to}",
-      "correctionDescription": "(descrição atualizada)"
+      "correctionDescription": "Descrição: {from} → {to}"
     },
     "conversations": {
       "title": "Conversas",

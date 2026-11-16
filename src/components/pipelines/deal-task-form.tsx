@@ -55,7 +55,6 @@ export function DealTaskForm({
   const [kind, setKind] = useState("ligacao");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("09:00");
-  const [markDone, setMarkDone] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -78,7 +77,6 @@ export function DealTaskForm({
     setDueTime(
       `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
     );
-    setMarkDone(false);
   }, [open, deal, deals, profile?.id, correctTask]);
 
   const kindLabel = (value: string) =>
@@ -122,17 +120,27 @@ export function DealTaskForm({
       return;
     }
     const name = profile.full_name?.trim() || profile.email || "";
+    const message = [
+      t("correctionLogged", {
+        name,
+        from: `${correctTask.title} (${kindLabel(correctTask.kind)})`,
+        to: `${nextTitle} (${kindLabel(kind)})`,
+      }),
+      descriptionChanged
+        ? t("correctionDescription", {
+            from: correctTask.description?.trim() || "—",
+            to: nextDescription || "—",
+          })
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
     await supabase.from("deal_events").insert({
       account_id: accountId,
       deal_id: correctTask.deal_id,
       actor_id: profile.id,
       kind: "task_corrected",
-      message:
-        t("correctionLogged", {
-          name,
-          from: `${correctTask.title} (${kindLabel(correctTask.kind)})`,
-          to: `${nextTitle} (${kindLabel(kind)})`,
-        }) + (descriptionChanged ? ` ${t("correctionDescription")}` : ""),
+      message,
     });
     setSaving(false);
     toast.success(t("corrected"));
@@ -152,21 +160,40 @@ export function DealTaskForm({
     if (!accountId || !user) return;
     setSaving(true);
     const dueAt = new Date(`${dueDate}T${dueTime || "09:00"}:00`);
+    const nextTitle = title.trim();
+    const nextDescription = description.trim();
     const { error } = await supabase.from("deal_tasks").insert({
       account_id: accountId,
       deal_id: dealId,
-      title: title.trim(),
-      description: description.trim() || null,
+      title: nextTitle,
+      description: nextDescription || null,
       assignee_id: assigneeId,
       due_at: dueAt.toISOString(),
       kind,
       created_by: user.id,
-      done_at: markDone ? new Date().toISOString() : null,
     });
-    setSaving(false);
     if (error) {
+      setSaving(false);
       toast.error(t("failed"));
       return;
+    }
+    const name = profile?.full_name?.trim() || profile?.email || "";
+    const message = [
+      t("createdLogged", { name, title: nextTitle, kind: kindLabel(kind) }),
+      nextDescription ? t("createdDescription", { description: nextDescription }) : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const { error: historyError } = await supabase.from("deal_events").insert({
+      account_id: accountId,
+      deal_id: dealId,
+      actor_id: profile?.id ?? null,
+      kind: "task_created",
+      message,
+    });
+    setSaving(false);
+    if (historyError) {
+      console.error(historyError);
     }
     toast.success(t("created"));
     onOpenChange(false);
@@ -266,15 +293,6 @@ export function DealTaskForm({
               className="bg-muted"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={markDone}
-              onChange={(e) => setMarkDone(e.target.checked)}
-              className="size-4 accent-primary"
-            />
-            {t("markDone")}
-          </label>
           </>
           )}
         </div>
