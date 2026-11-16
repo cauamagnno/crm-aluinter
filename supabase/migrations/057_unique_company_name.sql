@@ -39,7 +39,29 @@ ALTER FUNCTION public.normalize_company_name(text) OWNER TO postgres;
 SET work_mem = '4MB';
 SET maintenance_work_mem = '32MB';
 SET max_parallel_workers_per_gather = 0;
-SET lock_timeout = '5s';
+SET max_parallel_maintenance_workers = 0;
+SET lock_timeout = '30s';
+SET statement_timeout = 0;
+
+-- A previous attempt stored this as a generated column. Updating that
+-- column fails, so drop it first. DROP of a generated column is metadata.
+DO $$
+DECLARE
+  generated "char";
+BEGIN
+  SELECT a.attgenerated INTO generated
+  FROM pg_attribute a
+  JOIN pg_class c ON c.oid = a.attrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public'
+    AND c.relname = 'contacts'
+    AND a.attname = 'company_normalized'
+    AND NOT a.attisdropped;
+
+  IF generated IS NOT NULL AND generated <> '' THEN
+    ALTER TABLE public.contacts DROP COLUMN company_normalized;
+  END IF;
+END $$;
 
 ALTER TABLE contacts
   ADD COLUMN IF NOT EXISTS is_company BOOLEAN NOT NULL DEFAULT false;
@@ -102,7 +124,37 @@ BEGIN
   END LOOP;
 END $$;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_account_company
+-- Two company rows with the same normalized name make the unique index fail
+-- and abort the deploy. Keep the oldest and clear the flag on the rest.
+WITH ranked AS (
+  SELECT id,
+         row_number() OVER (
+           PARTITION BY account_id, company_normalized
+           ORDER BY created_at, id
+         ) AS n
+  FROM contacts
+  WHERE is_company AND company_normalized IS NOT NULL
+)
+UPDATE contacts
+SET is_company = false
+WHERE id IN (SELECT id FROM ranked WHERE n > 1);
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_index i ON i.indexrelid = c.oid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'idx_contacts_account_company'
+      AND NOT i.indisvalid
+  ) THEN
+    EXECUTE 'DROP INDEX public.idx_contacts_account_company';
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_contacts_account_company
   ON contacts (account_id, company_normalized)
   WHERE is_company AND company_normalized IS NOT NULL;
 

@@ -57,6 +57,7 @@ import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { useTranslations } from 'next-intl';
+import { formatDatePt } from '@/lib/pt-format';
 
 const PAGE_SIZE = 25;
 
@@ -85,6 +86,9 @@ export function ContactsDirectory({
   const [totalCount, setTotalCount] = useState(0);
   // Tag filter — contacts shown must have ANY of these tags (OR).
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  // Created-date window from the dashboard (?createdFrom=&createdTo=, local days, inclusive).
+  // Applies to the plain list; the tag filter is resolved server-side and ignores it.
+  const [createdRange, setCreatedRange] = useState<{ from: string; to: string } | null>(null);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -173,6 +177,13 @@ export function ContactsDirectory({
         .order('created_at', { ascending: false })
         .range(from, to);
 
+      if (createdRange) {
+        const start = new Date(`${createdRange.from}T00:00:00`);
+        const end = new Date(`${createdRange.to}T00:00:00`);
+        end.setDate(end.getDate() + 1);
+        query = query.gte('created_at', start.toISOString()).lt('created_at', end.toISOString());
+      }
+
       if (companies) {
         query = query.eq('is_company', true).not('company', 'is', null).neq('company', '');
       }
@@ -228,7 +239,19 @@ export function ContactsDirectory({
 
     setContacts(enriched);
     setLoading(false);
-  }, [companies, supabase, page, search, selectedTagIds, tagsMap, t]);
+  }, [companies, supabase, page, search, selectedTagIds, tagsMap, t, createdRange]);
+
+  // Read the dashboard's date window once from the URL (no Suspense needed here).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const from = params.get('createdFrom');
+    const to = params.get('createdTo');
+    if (from && to && /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCreatedRange({ from, to });
+      setPage(0);
+    }
+  }, []);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -568,6 +591,28 @@ export function ContactsDirectory({
           </div>
         </div>
       )}
+
+      {createdRange ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm">
+          <span>
+            {t('createdRange', {
+              from: formatDatePt(createdRange.from),
+              to: formatDatePt(createdRange.to),
+            })}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setCreatedRange(null);
+              setPage(0);
+              window.history.replaceState(null, '', window.location.pathname);
+            }}
+          >
+            {t('clearCreatedRange')}
+          </Button>
+        </div>
+      ) : null}
 
       {/* Table */}
       <div className="rounded-lg border border-border overflow-hidden">

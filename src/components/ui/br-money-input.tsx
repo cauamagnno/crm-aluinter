@@ -13,6 +13,7 @@ export function BrMoneyInput({
   className,
   placeholder = "0,00",
   allowEmpty = false,
+  disabled = false,
 }: {
   value: number | null;
   onValueChange: (value: number | null) => void;
@@ -20,6 +21,7 @@ export function BrMoneyInput({
   className?: string;
   placeholder?: string;
   allowEmpty?: boolean;
+  disabled?: boolean;
 }) {
   const [text, setText] = useState(() => (value == null ? "" : formatBrMoney(value)));
 
@@ -41,6 +43,7 @@ export function BrMoneyInput({
         inputMode="numeric"
         placeholder={placeholder}
         value={text}
+        disabled={disabled}
         className={cn("pl-8", className)}
         onChange={(event) => {
           const next = maskBrMoney(event.target.value);

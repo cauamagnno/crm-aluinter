@@ -13,8 +13,9 @@ export interface DashboardGoals {
 export const DEFAULT_DASHBOARD_GOALS: DashboardGoals = {
   conversationsPerDay: 15,
   callsPerDay: 15,
-  whatsappPerDay: 15,
-  emailsPerDay: 15,
+  // 0 means "no goal": WhatsApp and e-mail have no target by default.
+  whatsappPerDay: 0,
+  emailsPerDay: 0,
   quotesPerWeek: 12,
   curveAPct: 100,
   followUpPct: 90,
@@ -40,6 +41,12 @@ function positiveInt(value: unknown, fallback: number, max = 10_000) {
   return Math.min(max, Math.max(1, Math.round(n)))
 }
 
+function nonNegativeInt(value: unknown, fallback: number, max = 10_000) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(max, Math.max(0, Math.round(n)))
+}
+
 function pct(value: unknown, fallback: number) {
   const n = Number(value)
   if (!Number.isFinite(n)) return fallback
@@ -58,8 +65,8 @@ export function parseDashboardGoals(row?: GoalRow | null): DashboardGoals {
   return {
     conversationsPerDay: positiveInt(row.conversations_per_day, d.conversationsPerDay, 1000),
     callsPerDay: positiveInt(row.calls_per_day, d.callsPerDay, 1000),
-    whatsappPerDay: positiveInt(row.whatsapp_per_day, d.whatsappPerDay, 1000),
-    emailsPerDay: positiveInt(row.emails_per_day, d.emailsPerDay, 1000),
+    whatsappPerDay: nonNegativeInt(row.whatsapp_per_day, d.whatsappPerDay, 1000),
+    emailsPerDay: nonNegativeInt(row.emails_per_day, d.emailsPerDay, 1000),
     quotesPerWeek: positiveInt(row.quotes_per_week, d.quotesPerWeek, 1000),
     curveAPct: pct(row.curve_a_pct, d.curveAPct),
     followUpPct: pct(row.follow_up_pct, d.followUpPct),

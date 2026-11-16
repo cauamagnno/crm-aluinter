@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import type { Deal, Profile } from "@/types";
+import type { Deal, DealTask, Profile } from "@/types";
 import { Button } from "@/components/ui/button";
 import { BrDateInput } from "@/components/ui/br-date-input";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ export function DealTaskForm({
   onSaved,
   lockAssignee = false,
   onCreated,
+  correctTask = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -40,6 +41,8 @@ export function DealTaskForm({
   /** When set, the assignee cannot be changed (the salesperson's own tasks). */
   lockAssignee?: boolean;
   onCreated?: (dealId: string) => void;
+  /** When set, the form corrects this task's subject, kind and description instead of creating one. */
+  correctTask?: DealTask | null;
 }) {
   const t = useTranslations("Pipelines.tasks");
   const supabase = createClient();
@@ -57,6 +60,13 @@ export function DealTaskForm({
 
   useEffect(() => {
     if (!open) return;
+    if (correctTask) {
+      setDealId(correctTask.deal_id);
+      setTitle(correctTask.title);
+      setDescription(correctTask.description ?? "");
+      setKind(correctTask.kind);
+      return;
+    }
     const selected = deal ?? deals[0] ?? null;
     setDealId(selected?.id ?? "");
     setTitle("");
@@ -69,7 +79,15 @@ export function DealTaskForm({
       `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
     );
     setMarkDone(false);
-  }, [open, deal, deals, profile?.id]);
+  }, [open, deal, deals, profile?.id, correctTask]);
+
+  const kindLabel = (value: string) =>
+    ({
+      ligacao: t("kindCall"),
+      whatsapp: t("kindWhatsapp"),
+      email: t("kindEmail"),
+      visita: t("kindVisita"),
+    })[value] ?? value;
 
   const selectedDeal = deals.find((d) => d.id === dealId) ?? deal;
   const contactSource =
@@ -77,7 +95,56 @@ export function DealTaskForm({
   const company =
     contactSource?.contact?.name || contactSource?.contact?.phone || "—";
 
+  async function handleCorrect() {
+    if (!correctTask || !title.trim()) {
+      toast.error(t("required"));
+      return;
+    }
+    if (!accountId || !profile?.id) return;
+    const nextTitle = title.trim();
+    const nextDescription = description.trim() || null;
+    const titleChanged = nextTitle !== correctTask.title;
+    const kindChanged = kind !== correctTask.kind;
+    const descriptionChanged = (nextDescription ?? "") !== (correctTask.description ?? "");
+    if (!titleChanged && !kindChanged && !descriptionChanged) {
+      onOpenChange(false);
+      return;
+    }
+    setSaving(true);
+    // done_at is left untouched so the completed task keeps counting in the activity panel.
+    const { error } = await supabase
+      .from("deal_tasks")
+      .update({ title: nextTitle, kind, description: nextDescription })
+      .eq("id", correctTask.id);
+    if (error) {
+      setSaving(false);
+      toast.error(t("correctFailed"));
+      return;
+    }
+    const name = profile.full_name?.trim() || profile.email || "";
+    await supabase.from("deal_events").insert({
+      account_id: accountId,
+      deal_id: correctTask.deal_id,
+      actor_id: profile.id,
+      kind: "task_corrected",
+      message:
+        t("correctionLogged", {
+          name,
+          from: `${correctTask.title} (${kindLabel(correctTask.kind)})`,
+          to: `${nextTitle} (${kindLabel(kind)})`,
+        }) + (descriptionChanged ? ` ${t("correctionDescription")}` : ""),
+    });
+    setSaving(false);
+    toast.success(t("corrected"));
+    onOpenChange(false);
+    onSaved();
+  }
+
   async function handleSave() {
+    if (correctTask) {
+      await handleCorrect();
+      return;
+    }
     if (!title.trim() || !assigneeId || !dueDate || !dealId) {
       toast.error(t("required"));
       return;
@@ -114,13 +181,19 @@ export function DealTaskForm({
         className="w-full border-border bg-popover p-0 sm:max-w-md"
       >
         <SheetHeader className="border-b border-border px-5 py-4">
-          <SheetTitle>{t("title")}</SheetTitle>
+          <SheetTitle>{correctTask ? t("correctTitle") : t("title")}</SheetTitle>
         </SheetHeader>
         <div className="flex flex-col gap-4 overflow-y-auto px-5 py-4">
+          {correctTask ? (
+            <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              {t("correctHint")}
+            </p>
+          ) : null}
           <div className="grid gap-1.5">
             <Label>{t("company")}</Label>
             <Input value={company} readOnly className="bg-muted" />
           </div>
+          {correctTask ? null : (
           <div className="grid gap-1.5">
             <Label>{t("deal")} *</Label>
             <FieldSelect
@@ -130,6 +203,7 @@ export function DealTaskForm({
               options={deals.map((d) => ({ value: d.id, label: d.title }))}
             />
           </div>
+          )}
           <div className="grid gap-1.5">
             <Label>{t("subject")} *</Label>
             <Input
@@ -148,6 +222,7 @@ export function DealTaskForm({
               className="min-h-20 bg-muted"
             />
           </div>
+          {correctTask ? null : (
           <div className="grid gap-1.5">
             <Label>{t("assignee")} *</Label>
             <FieldSelect
@@ -161,6 +236,7 @@ export function DealTaskForm({
               ]}
             />
           </div>
+          )}
           <div className="grid gap-1.5">
             <Label>{t("kind")} *</Label>
             <FieldSelect
@@ -175,6 +251,8 @@ export function DealTaskForm({
               ]}
             />
           </div>
+          {correctTask ? null : (
+          <>
           <div className="grid gap-1.5">
             <Label>{t("dueDate")} *</Label>
             <BrDateInput value={dueDate} onValueChange={setDueDate} className="bg-muted" />
@@ -197,6 +275,8 @@ export function DealTaskForm({
             />
             {t("markDone")}
           </label>
+          </>
+          )}
         </div>
         <div className="flex gap-2 border-t border-border px-5 py-4">
           <Button
@@ -208,7 +288,7 @@ export function DealTaskForm({
           </Button>
           <Button className="flex-1" onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
-            {saving ? t("saving") : t("save")}
+            {saving ? t("saving") : correctTask ? t("correctSave") : t("save")}
           </Button>
         </div>
       </SheetContent>

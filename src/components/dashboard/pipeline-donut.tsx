@@ -1,7 +1,9 @@
 "use client"
 
+import Link from 'next/link'
 import { GitBranch } from 'lucide-react'
 import type { PipelineDonutData } from '@/lib/dashboard/types'
+import type { SellerFilter } from '@/lib/dashboard/seller'
 import { formatCurrencyShort } from '@/lib/currency'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
@@ -11,11 +13,13 @@ interface PipelineDonutProps {
   loading: boolean
   /** Account default currency for the totals. */
   currency: string
+  /** Seller the donut was computed for; each stage links to that seller's list. */
+  seller?: SellerFilter
 }
 
 import { useTranslations } from 'next-intl'
 
-export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
+export function PipelineDonut({ data, loading, currency, seller = null }: PipelineDonutProps) {
   const t = useTranslations('Dashboard.pipelineDonut')
   return (
     <section className="flex h-full flex-col rounded-xl border border-border bg-card">
@@ -39,22 +43,32 @@ export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
           <>
             <Donut data={data} currency={currency} />
             <ul className="mt-5 space-y-2">
-              {data.stages.map((s) => (
-                <li key={s.id} className="flex items-center gap-3 text-xs">
-                  <span
-                    className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                    style={{ background: s.color }}
-                    aria-hidden
-                  />
-                  <span className="flex-1 truncate text-muted-foreground">{s.name}</span>
-                  <span className="text-muted-foreground tabular-nums">
-                    {t('dealCount', { count: s.dealCount })}
-                  </span>
-                  <span className="w-20 text-right text-muted-foreground tabular-nums">
-                    {formatCurrencyShort(s.totalValue, currency)}
-                  </span>
-                </li>
-              ))}
+              {data.stages.map((s) => {
+                // Open deals of this stage: same rows as the slice (status open, stage, seller).
+                const params = new URLSearchParams({ status: 'open', stage: s.id })
+                if (seller) params.set('owner', seller.profileId)
+                return (
+                  <li key={s.id}>
+                    <Link
+                      href={`/pipelines?${params.toString()}`}
+                      className="flex items-center gap-3 rounded-md px-1 py-0.5 text-xs hover:bg-muted/60"
+                    >
+                      <span
+                        className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                        style={{ background: s.color }}
+                        aria-hidden
+                      />
+                      <span className="flex-1 truncate text-muted-foreground">{s.name}</span>
+                      <span className="text-muted-foreground tabular-nums">
+                        {t('dealCount', { count: s.dealCount })}
+                      </span>
+                      <span className="w-20 text-right text-muted-foreground tabular-nums">
+                        {formatCurrencyShort(s.totalValue, currency)}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
             </ul>
           </>
         )}

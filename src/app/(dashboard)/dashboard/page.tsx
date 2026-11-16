@@ -74,7 +74,7 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<DashboardPeriod>(() => periodToday())
   const [sellerId, setSellerId] = useState('all')
   const [sellers, setSellers] = useState<
-    { id: string; userId: string | null; name: string }[]
+    { id: string; userId: string | null; name: string; role: string | null }[]
   >([])
 
   const [kpis, setKpis] = useState<AluinterKpiSnapshot | null>(null)
@@ -178,7 +178,7 @@ export default function DashboardPage() {
     const db = createClient()
     void db
       .from('profiles')
-      .select('id, user_id, full_name, email')
+      .select('id, user_id, full_name, email, account_role')
       .order('full_name')
       .then(({ data }) => {
         const rows = (data ?? []) as {
@@ -186,6 +186,7 @@ export default function DashboardPage() {
           user_id: string | null
           full_name: string | null
           email: string | null
+          account_role: string | null
         }[]
         setSellers(
           rows
@@ -193,6 +194,7 @@ export default function DashboardPage() {
               id: profile.id,
               userId: profile.user_id,
               name: profile.full_name || profile.email || 'Vendedor',
+              role: profile.account_role,
             }))
             .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
         )
@@ -208,18 +210,25 @@ export default function DashboardPage() {
     return selected ? { profileId: selected.id, userId: selected.userId } : null
   }, [isManager, profile, user?.id, sellerId, sellers])
 
+  // Only people with the agent role count toward the team goal. Admins,
+  // gestores and owners are outside the team total.
+  const agentSellers = useMemo(
+    () => sellers.filter((seller) => seller.role === 'agent'),
+    [sellers],
+  )
+
   // Targets for what is on screen: one seller's own, or the team total.
   const scopedGoals = useMemo(
     () =>
       scopeGoals(
         goals,
         sellerOverrides,
-        isManager ? sellers.map((seller) => seller.id) : [],
+        isManager ? agentSellers.map((seller) => seller.id) : [],
         sellerFilter,
       ),
-    [goals, sellerOverrides, isManager, sellers, sellerFilter],
+    [goals, sellerOverrides, isManager, agentSellers, sellerFilter],
   )
-  const teamSize = sellerFilter ? 1 : sellers.length
+  const teamSize = sellerFilter ? 1 : agentSellers.length
 
   // A salesperson must never load before their own profile is known,
   // otherwise the first request would run unfiltered.
@@ -314,6 +323,7 @@ export default function DashboardPage() {
             loading={salesLoading}
             period={period}
             currency={defaultCurrency}
+            seller={sellerFilter}
           />
           <TaskActivityBar
             activity={tasks}
@@ -328,6 +338,8 @@ export default function DashboardPage() {
             loading={kpisLoading}
             currency={defaultCurrency}
             goals={scopedGoals}
+            period={period}
+            seller={sellerFilter}
           />
         </TabsContent>
 
@@ -344,6 +356,8 @@ export default function DashboardPage() {
             activity={activity}
             activityLoading={activityLoading}
             currency={defaultCurrency}
+            period={period}
+            seller={sellerFilter}
           />
         </TabsContent>
 

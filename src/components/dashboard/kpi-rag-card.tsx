@@ -1,6 +1,7 @@
 'use client'
 
 import type { ComponentType, ReactNode } from 'react'
+import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 import type { ConsultantSlice, KpiOrigin, RagStatus } from '@/lib/dashboard/aluinter-kpis'
@@ -72,6 +73,7 @@ export function KpiRagCard({
   hint,
   consultants,
   progress,
+  href,
   children,
 }: {
   index: number
@@ -89,6 +91,8 @@ export function KpiRagCard({
   hint?: string
   consultants?: ConsultantSlice[]
   progress?: number | null
+  /** Set when the number has a list behind it; the value links to that list. */
+  href?: string
   children?: ReactNode
 }) {
   const t = useTranslations('Dashboard.gestao')
@@ -112,9 +116,18 @@ export function KpiRagCard({
         </div>
 
         <div>
-          <p className="text-[26px] leading-none font-bold tracking-tight tabular-nums text-foreground">
-            {value}
-          </p>
+          {href ? (
+            <Link
+              href={href}
+              className="inline-block rounded-md text-[26px] leading-none font-bold tracking-tight tabular-nums text-foreground underline-offset-4 hover:underline"
+            >
+              {value}
+            </Link>
+          ) : (
+            <p className="text-[26px] leading-none font-bold tracking-tight tabular-nums text-foreground">
+              {value}
+            </p>
+          )}
           <p className="mt-1.5 text-xs text-muted-foreground">{target}</p>
         </div>
 
@@ -136,6 +149,11 @@ export function KpiRagCard({
           <RagDot rag={rag} label={ragLabel} />
           <OriginBadge origin={origin} label={originLabel} />
         </div>
+        {href ? (
+          <Link href={href} className="-mt-1 text-[11px] font-medium text-primary hover:underline">
+            {t('openList')}
+          </Link>
+        ) : null}
 
         {consultants && consultants.length > 0 ? (
           <ul className="space-y-1.5">

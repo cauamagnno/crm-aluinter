@@ -65,6 +65,8 @@ interface MessageThreadProps {
   contact: Contact | null;
   messages: Message[];
   onMessagesLoaded: (messages: Message[]) => void;
+  /** Older page, newest-last, to prepend above the messages already on screen. */
+  onOlderMessages?: (messages: Message[]) => void;
   onNewMessage: (message: Message) => void;
   onUpdateMessage: (id: string, updates: Partial<Message>) => void;
   onStatusChange: (conversationId: string, status: ConversationStatus) => void;
@@ -105,6 +107,8 @@ interface MessageThreadProps {
   contactPanelOpen?: boolean;
   onToggleContactPanel?: () => void;
 }
+
+const MESSAGE_PAGE = 60;
 
 function formatDateSeparator(dateStr: string, t: ReturnType<typeof useTranslations>): string {
   const date = new Date(dateStr);
@@ -167,6 +171,7 @@ export function MessageThread({
   contact,
   messages,
   onMessagesLoaded,
+  onOlderMessages,
   onNewMessage,
   onUpdateMessage,
   onStatusChange,
@@ -184,7 +189,10 @@ export function MessageThread({
   const { user } = useAuth();
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlder, setHasOlder] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const preserveScrollRef = useRef<{ height: number; top: number } | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
@@ -279,8 +287,10 @@ export function MessageThread({
   // during render (React 19 refs rule); consumers only read `.current`
   // inside the async fetch completion, which runs after the render.
   const onMessagesLoadedRef = useRef(onMessagesLoaded);
+  const onOlderMessagesRef = useRef(onOlderMessages);
   useEffect(() => {
     onMessagesLoadedRef.current = onMessagesLoaded;
+    onOlderMessagesRef.current = onOlderMessages;
   });
 
   const conversationId = conversation?.id;
@@ -311,19 +321,25 @@ export function MessageThread({
 
     (async () => {
       setLoading(true);
+      setHasOlder(false);
 
       const { data, error } = await supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(MESSAGE_PAGE + 1);
 
       if (cancelled) return;
 
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current(data ?? []);
+        const rows = (data ?? []) as Message[];
+        const more = rows.length > MESSAGE_PAGE;
+        const page = (more ? rows.slice(0, MESSAGE_PAGE) : rows).slice().reverse();
+        setHasOlder(more);
+        onMessagesLoadedRef.current(page);
       }
 
       if (!cancelled) setLoading(false);
@@ -468,13 +484,51 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
-  // Auto-scroll to bottom on new messages
+  // Stick to the latest message, unless this update is an older page
+  // being prepended — then keep the viewport on the same message.
   useEffect(() => {
-    if (scrollRef.current) {
-      const el = scrollRef.current;
-      el.scrollTop = el.scrollHeight;
+    const el = scrollRef.current;
+    if (!el) return;
+    const snap = preserveScrollRef.current;
+    if (snap) {
+      el.scrollTop = el.scrollHeight - snap.height + snap.top;
+      preserveScrollRef.current = null;
+      return;
     }
+    el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  const loadOlder = useCallback(async () => {
+    if (!conversationId || loadingOlder || !hasOlder) return;
+    const oldest = messages[0];
+    if (!oldest) return;
+    const el = scrollRef.current;
+    if (el) {
+      preserveScrollRef.current = { height: el.scrollHeight, top: el.scrollTop };
+    }
+    setLoadingOlder(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .lt("created_at", oldest.created_at)
+      .order("created_at", { ascending: false })
+      .limit(MESSAGE_PAGE + 1);
+    if (error) {
+      console.error("Failed to fetch older messages:", error);
+      preserveScrollRef.current = null;
+      setLoadingOlder(false);
+      return;
+    }
+    const rows = (data ?? []) as Message[];
+    const more = rows.length > MESSAGE_PAGE;
+    const page = (more ? rows.slice(0, MESSAGE_PAGE) : rows).slice().reverse();
+    setHasOlder(more && page.length > 0);
+    if (page.length === 0) preserveScrollRef.current = null;
+    else onOlderMessagesRef.current?.(page);
+    setLoadingOlder(false);
+  }, [conversationId, hasOlder, loadingOlder, messages]);
 
   const handleSend = useCallback(
     async (text: string, replyToId?: string) => {
@@ -1108,6 +1162,18 @@ export function MessageThread({
           </div>
         ) : (
           <div className="space-y-4">
+            {hasOlder && (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => void loadOlder()}
+                  disabled={loadingOlder}
+                  className="rounded-full bg-muted px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
+                >
+                  {loadingOlder ? "…" : t("loadOlder")}
+                </button>
+              </div>
+            )}
             {messageGroups.map((group) => (
               <div key={group.date}>
                 {/* Date separator */}

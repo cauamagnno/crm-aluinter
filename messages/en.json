@@ -376,6 +376,7 @@
       "allCompanies": "All companies",
       "clearAll": "Clear all",
       "noConversations": "No conversations found",
+      "loadMore": "Load more",
       "noMessagesYet": "No messages yet",
       "unknown": "Unknown"
     },
@@ -397,6 +398,7 @@
       "noTeammates": "No teammates available",
       "me": " (me)",
       "noMessagesYet": "No messages yet",
+      "loadOlder": "Older messages",
       "sendTemplateHint": "Send a template to start the conversation",
       "unknown": "Unknown",
       "selectConversation": "Select a conversation",

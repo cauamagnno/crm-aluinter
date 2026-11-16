@@ -205,7 +205,10 @@
     "completeFailed": "Não foi possível concluir a tarefa",
     "cancelTask": "Cancelar",
     "taskCancelled": "Tarefa cancelada",
-    "cancelFailed": "Não foi possível cancelar a tarefa"
+    "cancelFailed": "Não foi possível cancelar a tarefa",
+    "pageRange": "{start}–{end} de {total}",
+    "previousPage": "Anterior",
+    "nextPage": "Próxima"
   },
   "Notifications": {
     "title": "Notificações",
@@ -349,7 +352,8 @@
       "visit": "Visitas",
       "dailyTarget": "Meta: {target} por dia",
       "teamTarget": "Meta: {target} por dia · soma de {sellers} vendedores",
-      "noTarget": "Sem meta definida"
+      "noTarget": "Sem meta definida",
+      "periodTarget": "Meta do período: {target}"
     },
     "operacao": {
       "newContacts": "Novos contatos",
@@ -361,6 +365,7 @@
       "reply": "Responder agora"
     },
     "gestao": {
+      "openList": "Ver lista",
       "legendTitle": "Como ler este painel",
       "legendBody": "Verde, amarelo e vermelho seguem o Capítulo 14. CRM mede conversas, negócios e valores no funil. Easy continua sendo a fonte de orçamento formal, faturamento, desconto e compra. Marketing entra depois, pela BM.",
       "healthTitle": "Saúde da carteira",
@@ -492,6 +497,7 @@
       "allCompanies": "Todas as empresas",
       "clearAll": "Limpar tudo",
       "noConversations": "Nenhuma conversa encontrada",
+      "loadMore": "Carregar mais",
       "noMessagesYet": "Nenhuma mensagem ainda",
       "unknown": "Desconhecido",
       "statusOpen": "Aberta",
@@ -516,6 +522,7 @@
       "noTeammates": "Nenhum colega disponível",
       "me": " (eu)",
       "noMessagesYet": "Nenhuma mensagem ainda",
+      "loadOlder": "Mensagens anteriores",
       "sendTemplateHint": "Envie um modelo para iniciar a conversa",
       "waitForSend": "Espere a mensagem terminar de enviar",
       "assignFailed": "Falha ao atualizar a atribuição",
@@ -676,6 +683,8 @@
   },
   "Contacts": {
     "page": {
+      "createdRange": "Criados entre {from} e {to}",
+      "clearCreatedRange": "Mostrar todos",
       "title": "Contatos",
       "subtitle": "Gerencie sua lista de contatos. {count} no total.",
       "subtitleZero": "Gerencie sua lista de contatos.",
@@ -914,6 +923,7 @@
   },
   "Pipelines": {
     "page": {
+      "stageChip": "Etapa: {name}",
       "title": "Negociações",
       "selectPipeline": "Selecionar funil",
       "noPipelinesYet": "Nenhum funil ainda",
@@ -1032,7 +1042,56 @@
       "empty": "Nenhuma tarefa nesta negociação",
       "upcoming": "Próximas",
       "done": "Concluídas",
-      "markComplete": "Concluir"
+      "markComplete": "Concluir",
+      "correctButton": "Corrige",
+      "correctTitle": "Corrigir tarefa concluída",
+      "correctHint": "A tarefa continua concluída. A correção fica registrada no histórico da negociação.",
+      "correctSave": "Salvar correção",
+      "corrected": "Tarefa corrigida",
+      "correctFailed": "Falha ao corrigir a tarefa",
+      "correctionLogged": "{name} corrigiu a tarefa: {from} → {to}",
+      "correctionDescription": "(descrição atualizada)"
+    },
+    "conversations": {
+      "title": "Conversas",
+      "paste": "Colar conversa",
+      "pasteTitle": "Colar conversa",
+      "editTitle": "Editar conversa colada",
+      "pasteHint": "Cole o texto copiado do WhatsApp. Fica só no histórico desta negociação e não é enviado a ninguém.",
+      "subject": "Título (opcional)",
+      "body": "Texto da conversa",
+      "bodyPlaceholder": "Cole aqui a conversa",
+      "requiredBody": "Cole o texto da conversa",
+      "cancel": "Cancelar",
+      "save": "Salvar",
+      "saving": "Salvando...",
+      "saved": "Conversa colada",
+      "updated": "Conversa atualizada",
+      "failed": "Não foi possível salvar a conversa",
+      "edit": "Editar",
+      "delete": "Excluir",
+      "deleteConfirm": "Excluir esta conversa colada?",
+      "deleted": "Conversa excluída",
+      "deleteFailed": "Não foi possível excluir a conversa",
+      "loading": "Carregando conversas...",
+      "empty": "Nenhuma conversa colada nesta negociação.",
+      "untitled": "Sem título",
+      "unknownAuthor": "Usuário",
+      "showText": "Ver texto",
+      "whatsappTitle": "Conversas do WhatsApp do contato",
+      "noContact": "Esta negociação não tem contato vinculado.",
+      "whatsappEmpty": "Nenhuma conversa do WhatsApp com este contato.",
+      "status": {
+        "open": "Aberta",
+        "pending": "Pendente",
+        "closed": "Fechada"
+      },
+      "openConversation": "Abrir no inbox",
+      "showMessages": "Ver mensagens ({count})",
+      "customer": "Cliente",
+      "agent": "Atendente",
+      "bot": "Bot",
+      "mediaLabel": "[{type}]"
     },
     "opportunity": {
       "back": "Voltar",
@@ -1044,7 +1103,7 @@
       "sectionDeal": "Negociação",
       "name": "Nome",
       "qualification": "Qualificação",
-      "closeForecast": "Previsão de fechamento",
+      "closeForecast": "Fechamento",
       "createdAt": "Criada em",
       "totalValue": "Valor total",
       "contacts": "Contatos",
@@ -1092,7 +1151,10 @@
       "warm4": "Muito quente",
       "saved": "Negociação atualizada",
       "saveFailed": "Falha ao salvar",
-      "statusFailed": "Falha ao atualizar o status"
+      "statusFailed": "Falha ao atualizar o status",
+      "readOnlyHint": "Somente leitura: esta oportunidade pertence a outro vendedor. Você pode ver o histórico e as tarefas.",
+      "saleFieldChanged": "{name} alterou {field} de {from} para {to}",
+      "closedAt": "Data da venda"
     },
     "form": {
       "editDeal": "Editar negociação",
@@ -1106,7 +1168,7 @@
       "linkToConversation": "Abrir conversa",
       "value": "Valor",
       "currency": "Moeda",
-      "expectedCloseDate": "Data de fechamento",
+      "expectedCloseDate": "Fechamento",
       "stage": "Etapa",
       "assignedTo": "Responsável",
       "unassigned": "Sem responsável",
@@ -2273,13 +2335,14 @@
         "emails": "E-mails/dia",
         "revenue": "Vendas/mês (R$)",
         "team": "Equipe ({count})",
-        "footnote": "Campo vazio segue o padrão (número em cinza). 0 significa sem meta. A equipe é a soma de todos.",
+        "footnote": "Campo vazio segue o padrão (número em cinza). 0 significa sem meta. O total da equipe soma só as ligações, e o painel conta só vendedores com papel de agente.",
         "loading": "Carregando equipe...",
         "empty": "Nenhum vendedor encontrado.",
         "unnamed": "Sem nome",
         "saving": "Salvando",
         "saved": "Salvo",
         "reset": "Voltar ao padrão",
+        "noGoal": "Sem meta",
         "saveFailed": "Não foi possível salvar a meta"
       },
       "otherTitle": "Metas da carteira",

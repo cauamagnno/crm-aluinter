@@ -13,7 +13,9 @@
 SET work_mem = '4MB';
 SET maintenance_work_mem = '32MB';
 SET max_parallel_workers_per_gather = 0;
-SET lock_timeout = '5s';
+SET max_parallel_maintenance_workers = 0;
+SET lock_timeout = '30s';
+SET statement_timeout = 0;
 
 DO $$
 DECLARE
@@ -89,6 +91,34 @@ BEGIN
   END LOOP;
 END $$;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_account_company
+WITH ranked AS (
+  SELECT id,
+         row_number() OVER (
+           PARTITION BY account_id, company_normalized
+           ORDER BY created_at, id
+         ) AS n
+  FROM contacts
+  WHERE is_company AND company_normalized IS NOT NULL
+)
+UPDATE contacts
+SET is_company = false
+WHERE id IN (SELECT id FROM ranked WHERE n > 1);
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_index i ON i.indexrelid = c.oid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'idx_contacts_account_company'
+      AND NOT i.indisvalid
+  ) THEN
+    EXECUTE 'DROP INDEX public.idx_contacts_account_company';
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_contacts_account_company
   ON contacts (account_id, company_normalized)
   WHERE is_company AND company_normalized IS NOT NULL;

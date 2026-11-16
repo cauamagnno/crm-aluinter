@@ -11,6 +11,13 @@ import {
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { formatCurrency } from '@/lib/currency'
+import {
+  contactsDrilldownHref,
+  inboxDrilldownHref,
+  pipelinesDrilldownHref,
+} from '@/lib/dashboard/drilldown'
+import type { DashboardPeriod } from '@/lib/dashboard/period'
+import type { SellerFilter } from '@/lib/dashboard/seller'
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
@@ -43,6 +50,8 @@ export function OperacaoPanel({
   activity,
   activityLoading,
   currency,
+  period,
+  seller = null,
 }: {
   metrics: MetricsBundle | null
   metricsLoading: boolean
@@ -55,6 +64,9 @@ export function OperacaoPanel({
   activity: ActivityItem[] | null
   activityLoading: boolean
   currency: string
+  /** Period and seller behind the numbers; the cards link to the lists that compose them. */
+  period?: DashboardPeriod
+  seller?: SellerFilter
 }) {
   const t = useTranslations('Dashboard.page')
   const tOps = useTranslations('Dashboard.operacao')
@@ -64,6 +76,7 @@ export function OperacaoPanel({
     ? [
         {
           label: t('activeConversations'),
+          href: inboxDrilldownHref({ status: 'open', seller }),
           value: metrics.activeConversations.current.toLocaleString(),
           hint: deltaLabel(
             metrics.activeConversations.previous,
@@ -74,6 +87,7 @@ export function OperacaoPanel({
         },
         {
           label: tOps('newContacts'),
+          href: period ? contactsDrilldownHref(period) : undefined,
           value: metrics.newContactsToday.current.toLocaleString(),
           hint: deltaLabel(
             metrics.newContactsToday.current - metrics.newContactsToday.previous,
@@ -84,12 +98,15 @@ export function OperacaoPanel({
         },
         {
           label: t('openDealsValue'),
+          href: pipelinesDrilldownHref({ status: 'open', seller }),
           value: formatCurrency(metrics.openDealsValue, currency),
           hint: t('openDeals', { count: metrics.openDealsCount }),
           tone: 0,
         },
         {
           label: tOps('messagesSent'),
+          // No list behind this number yet: the messages table is not shown anywhere.
+          href: undefined,
           value: metrics.messagesSentToday.current.toLocaleString(),
           hint: deltaLabel(
             metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
@@ -116,9 +133,18 @@ export function OperacaoPanel({
                   <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                     {s.label}
                   </p>
-                  <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
-                    {s.value}
-                  </p>
+                  {s.href ? (
+                    <Link
+                      href={s.href}
+                      className="mt-2 inline-block rounded-md text-2xl font-bold tracking-tight tabular-nums text-foreground underline-offset-4 hover:underline"
+                    >
+                      {s.value}
+                    </Link>
+                  ) : (
+                    <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
+                      {s.value}
+                    </p>
+                  )}
                   <p
                     className={cn(
                       'mt-1 text-xs',
@@ -142,7 +168,7 @@ export function OperacaoPanel({
           <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
         </div>
         <div className="space-y-4">
-          <PipelineDonut data={pipeline} loading={pipelineLoading} currency={currency} />
+          <PipelineDonut data={pipeline} loading={pipelineLoading} currency={currency} seller={seller} />
           <nav className="rounded-2xl border border-border bg-card p-3">
             <p className="px-2 pt-1 pb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
               {tOps('shortcuts')}

@@ -25,6 +25,9 @@ import {
 } from '@/lib/dashboard/goals'
 import { KpiRagCard, RagDot } from '@/components/dashboard/kpi-rag-card'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
+import { pipelinesDrilldownHref } from '@/lib/dashboard/drilldown'
+import type { DashboardPeriod } from '@/lib/dashboard/period'
+import type { SellerFilter } from '@/lib/dashboard/seller'
 
 function ragLabel(t: ReturnType<typeof useTranslations>, rag: RagStatus) {
   return t(`rag.${rag}`)
@@ -40,11 +43,16 @@ export function GestaoPanel({
   loading,
   currency,
   goals = DEFAULT_DASHBOARD_GOALS,
+  period,
+  seller = null,
 }: {
   data: AluinterKpiSnapshot | null
   loading: boolean
   currency: string
   goals?: DashboardGoals
+  /** Period and seller that produced `data`; the drill-down links reuse them. */
+  period?: DashboardPeriod
+  seller?: SellerFilter
 }) {
   const t = useTranslations('Dashboard.gestao')
 
@@ -172,6 +180,11 @@ export function GestaoPanel({
             ragLabel={ragLabel(t, quoteRag)}
             origin="proxy"
             originLabel={t('origin.proxy')}
+            href={
+              period
+                ? pipelinesDrilldownHref({ status: 'all', period, dateField: 'created', seller })
+                : undefined
+            }
             formula={t('k2.formula')}
             owner={t('ownerConsultant')}
             frequency={t('k2.frequency')}
@@ -216,6 +229,7 @@ export function GestaoPanel({
             ragLabel={ragLabel(t, followRag)}
             origin="crm"
             originLabel={t('origin.crm')}
+            href={pipelinesDrilldownHref({ status: 'open', seller })}
             formula={t('k4.formula')}
             owner={t('ownerConsultant')}
             frequency={t('k4.frequency')}
@@ -246,6 +260,11 @@ export function GestaoPanel({
             ragLabel={ragLabel(t, revenueRag)}
             origin="proxy"
             originLabel={t('origin.proxy')}
+            href={
+              period
+                ? pipelinesDrilldownHref({ status: 'won', period, dateField: 'closed', seller })
+                : undefined
+            }
             formula={t('k5.formula')}
             owner={t('ownerSupervision')}
             frequency={t('k5.frequency')}

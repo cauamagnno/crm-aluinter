@@ -15,9 +15,12 @@ import {
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { hasMinRole } from "@/lib/auth/roles";
+import { DealTaskForm } from "@/components/pipelines/deal-task-form";
 import { dealStatusPatch } from "@/lib/pipelines/close-deal";
 import { formatCurrency } from "@/lib/currency";
-import { formatDatePt } from "@/lib/pt-format";
+import { formatBrMoney, formatDatePt, formatIsoAsBrDate } from "@/lib/pt-format";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
 import { taskKindMessageKey, taskSeller } from "@/lib/pipelines/task-kinds";
 import type { Deal, DealStatus, DealTask, PipelineStage, Profile } from "@/types";
@@ -67,7 +70,9 @@ export function DealDetailDialog({
   const t = useTranslations("Pipelines.form");
   const tTasks = useTranslations("Pipelines.tasks");
   const tStatus = useTranslations("Pipelines.status");
+  const tOpp = useTranslations("Pipelines.opportunity");
   const supabase = createClient();
+  const { accountRole, profile } = useAuth();
 
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
@@ -79,6 +84,8 @@ export function DealDetailDialog({
   const [statusAction, setStatusAction] = useState<string | null>(null);
   const [tasks, setTasks] = useState<DealTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
+  const [correcting, setCorrecting] = useState<DealTask | null>(null);
+  const [tasksVersion, setTasksVersion] = useState(0);
 
   useEffect(() => {
     if (!open || !deal) return;
@@ -107,10 +114,13 @@ export function DealDetailDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, deal?.id, supabase]);
+  }, [open, deal?.id, supabase, tasksVersion]);
 
   if (!deal) return null;
   const current = deal;
+  const isClosedDeal = current.status === "won" || current.status === "lost";
+  const isAdmin = accountRole ? hasMinRole(accountRole, "admin") : false;
+  const canEditSale = !isClosedDeal || isAdmin;
 
   const display = dealDisplayStatus(current);
   const companyLabel = current.contact?.company?.trim() || "—";
@@ -121,22 +131,65 @@ export function DealDetailDialog({
       return;
     }
     setSaving(true);
-    const { error } = await supabase
-      .from("deals")
-      .update({
-        title: title.trim(),
-        value: parseFloat(value) || 0,
-        stage_id: stageId,
-        assigned_to: assignedTo || null,
-        expected_close_date: expectedCloseDate || null,
-        notes: notes.trim() || null,
-      })
-      .eq("id", current.id);
-    setSaving(false);
+    const nextValue = parseFloat(value) || 0;
+    const nextExpected = expectedCloseDate || null;
+    const nextExpectedKey = nextExpected ?? "";
+    const previousExpectedKey = (current.expected_close_date ?? "").slice(0, 10);
+    const valueChanged = nextValue !== Number(current.value ?? 0);
+    const expectedChanged = nextExpectedKey !== previousExpectedKey;
+    // Value and dates of a registered sale change only for admin and above.
+    const patch: Record<string, unknown> = {
+      title: title.trim(),
+      stage_id: stageId,
+      assigned_to: assignedTo || null,
+      notes: notes.trim() || null,
+    };
+    if (canEditSale) {
+      patch.value = nextValue;
+      patch.expected_close_date = nextExpected;
+    }
+    const { error } = await supabase.from("deals").update(patch).eq("id", current.id);
     if (error) {
+      setSaving(false);
       toast.error(t("toastFailedSave"));
       return;
     }
+    if (isClosedDeal && canEditSale && (valueChanged || expectedChanged)) {
+      const name = profile?.full_name?.trim() || profile?.email || "";
+      const entries: string[] = [];
+      if (valueChanged) {
+        entries.push(
+          tOpp("saleFieldChanged", {
+            name,
+            field: tOpp("totalValue"),
+            from: formatBrMoney(Number(current.value ?? 0)),
+            to: formatBrMoney(nextValue),
+          }),
+        );
+      }
+      if (expectedChanged) {
+        entries.push(
+          tOpp("saleFieldChanged", {
+            name,
+            field: tOpp("closeForecast"),
+            from: formatIsoAsBrDate(previousExpectedKey),
+            to: formatIsoAsBrDate(nextExpectedKey),
+          }),
+        );
+      }
+      if (profile?.id) {
+        await supabase.from("deal_events").insert(
+          entries.map((message) => ({
+            account_id: current.account_id,
+            deal_id: current.id,
+            actor_id: profile.id,
+            kind: "sale",
+            message,
+          })),
+        );
+      }
+    }
+    setSaving(false);
     toast.success(t("toastUpdated"));
     onSaved();
   }
@@ -197,9 +250,15 @@ export function DealDetailDialog({
 
   const openTasks = tasks.filter((task) => !task.done_at && !task.cancelled_at);
   const doneTasks = tasks.filter((task) => task.done_at);
+  // Assignee, the deal's seller, gestor and above can correct a task.
+  const canEditTask = (task: DealTask) =>
+    (accountRole ? hasMinRole(accountRole, "gestor") : false) ||
+    deal?.assigned_to === profile?.id ||
+    task.assignee_id === profile?.id;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto border-border bg-popover sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="pr-8">{deal.title}</DialogTitle>
@@ -221,6 +280,7 @@ export function DealDetailDialog({
             <Label>{t("value")}</Label>
             <BrMoneyInput
               value={value === "" ? null : Number(value)}
+              disabled={!canEditSale}
               onValueChange={(amount) => setValue(amount == null ? "" : String(amount))}
               allowEmpty
               className="bg-muted"
@@ -230,6 +290,7 @@ export function DealDetailDialog({
             <Label>{t("expectedCloseDate")}</Label>
             <BrDateInput
               value={expectedCloseDate.slice(0, 10)}
+              disabled={!canEditSale}
               onValueChange={setExpectedCloseDate}
               className="bg-muted"
             />
@@ -268,7 +329,7 @@ export function DealDetailDialog({
 
         {deal.conversation_id ? (
           <Link
-            href="/inbox"
+            href={`/inbox?c=${deal.conversation_id}`}
             className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
           >
             <MessageSquare className="h-3.5 w-3.5" />
@@ -348,6 +409,9 @@ export function DealDetailDialog({
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{task.title}</p>
+                    {task.description ? (
+                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">{task.description}</p>
+                    ) : null}
                     <p className="text-[11px] text-muted-foreground">
                       {tTasks(taskKindMessageKey(task.kind))}
                       {" · "}
@@ -364,16 +428,26 @@ export function DealDetailDialog({
               {doneTasks.map((task) => (
                 <li
                   key={task.id}
-                  className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground line-through"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground"
                 >
-                  {task.title}
-                  <span className="mt-0.5 block text-[11px] no-underline">
-                    {tTasks(taskKindMessageKey(task.kind))}
-                    {" · "}
-                    {taskSeller(task, profiles)?.name || "—"}
-                    {" · "}
-                    {formatDateTime(task.due_at)}
-                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate line-through">{task.title}</p>
+                    {task.description ? (
+                      <p className="mt-0.5 whitespace-pre-wrap text-xs">{task.description}</p>
+                    ) : null}
+                    <span className="mt-0.5 block text-[11px]">
+                      {tTasks(taskKindMessageKey(task.kind))}
+                      {" · "}
+                      {taskSeller(task, profiles)?.name || "—"}
+                      {" · "}
+                      {formatDateTime(task.due_at)}
+                    </span>
+                  </div>
+                  {canEditTask(task) ? (
+                    <Button size="sm" variant="ghost" onClick={() => setCorrecting(task)}>
+                      {tTasks("correctButton")}
+                    </Button>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -391,5 +465,20 @@ export function DealDetailDialog({
         <p className="sr-only">{formatCurrency(Number(value) || 0, deal.currency)}</p>
       </DialogContent>
     </Dialog>
+    <DealTaskForm
+      open={correcting !== null}
+      onOpenChange={(next) => {
+        if (!next) setCorrecting(null);
+      }}
+      deal={deal}
+      deals={[deal]}
+      profiles={profiles}
+      correctTask={correcting}
+      onSaved={() => {
+        setTasksVersion((version) => version + 1);
+        onSaved();
+      }}
+    />
+    </>
   );
 }

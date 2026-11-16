@@ -3,8 +3,10 @@
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { formatCurrency } from '@/lib/currency'
-import { periodInputValues, type DashboardPeriod } from '@/lib/dashboard/period'
+import type { DashboardPeriod } from '@/lib/dashboard/period'
+import { pipelinesDrilldownHref } from '@/lib/dashboard/drilldown'
 import type { SalesReport } from '@/lib/dashboard/sales-report'
+import type { SellerFilter } from '@/lib/dashboard/seller'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
 
 export function SalesReportBar({
@@ -12,14 +14,16 @@ export function SalesReportBar({
   loading,
   period,
   currency,
+  seller = null,
 }: {
   report: SalesReport | null
   loading: boolean
   period: DashboardPeriod
   currency: string
+  /** Same seller that filtered `report`; the links open that seller's list. */
+  seller?: SellerFilter
 }) {
   const t = useTranslations('Dashboard.sales')
-  const { from, to } = periodInputValues(period)
 
   if (loading && !report) {
     return <SkeletonCard className="min-h-[140px]" />
@@ -33,9 +37,10 @@ export function SalesReportBar({
     )
   }
 
-  const createdHref = `/pipelines?createdFrom=${from}&createdTo=${to}`
-  const wonHref = `/pipelines?status=won&closedFrom=${from}&closedTo=${to}`
-  const lostHref = `/pipelines?status=lost&closedFrom=${from}&closedTo=${to}`
+  // Same rows as the numbers: created in the period (any status), won/lost closed in the period.
+  const createdHref = pipelinesDrilldownHref({ status: 'all', period, dateField: 'created', seller })
+  const wonHref = pipelinesDrilldownHref({ status: 'won', period, dateField: 'closed', seller })
+  const lostHref = pipelinesDrilldownHref({ status: 'lost', period, dateField: 'closed', seller })
 
   const counts = [
     { key: 'created', label: t('created'), value: report.created, href: createdHref },

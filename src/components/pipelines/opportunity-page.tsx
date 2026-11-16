@@ -9,6 +9,7 @@ import { ArrowLeft, Check, Loader2, Pencil, Plus, ThumbsDown, ThumbsUp, X } from
 
 import { ContactForm } from "@/components/contacts/contact-form";
 import { DealTaskForm } from "@/components/pipelines/deal-task-form";
+import { DealConversations } from "@/components/pipelines/deal-conversations";
 import { BrDateInput } from "@/components/ui/br-date-input";
 import { BrMoneyInput } from "@/components/ui/br-money-input";
 import { Button } from "@/components/ui/button";
@@ -30,9 +31,10 @@ import {
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { hasMinRole } from "@/lib/auth/roles";
 import { dealStatusPatch } from "@/lib/pipelines/close-deal";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
-import { formatDateTimePt } from "@/lib/pt-format";
+import { formatBrMoney, formatDateTimePt, formatIsoAsBrDate } from "@/lib/pt-format";
 import type { Deal, DealTask, Pipeline, PipelineStage, Profile } from "@/types";
 
 const DEAL_PRODUCTS = [
@@ -58,6 +60,15 @@ function daysSince(iso?: string | null) {
   return Math.floor(diff / 86_400_000);
 }
 
+/** Local calendar date (yyyy-mm-dd) of a timestamp, so the date shown matches the user's day. */
+function localDateKey(iso?: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function warmKey(position: number): "warm0" | "warm1" | "warm2" | "warm3" | "warm4" {
   if (position <= 0) return "warm0";
   if (position === 1) return "warm1";
@@ -70,9 +81,10 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   const t = useTranslations("Pipelines.opportunity");
   const tStatus = useTranslations("Pipelines.status");
   const tTasks = useTranslations("Tasks");
+  const tDealTasks = useTranslations("Pipelines.tasks");
   const router = useRouter();
   const supabase = createClient();
-  const { profile } = useAuth();
+  const { profile, accountRole } = useAuth();
 
   const [deal, setDeal] = useState<Deal | null>(null);
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
@@ -84,6 +96,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
   const [closeDate, setCloseDate] = useState("");
+  const [closedDate, setClosedDate] = useState("");
   const [ownerId, setOwnerId] = useState("");
   const [tab, setTab] = useState<"history" | "tasks" | "products">("tasks");
   const [lossOpen, setLossOpen] = useState(false);
@@ -96,6 +109,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   const [companySaving, setCompanySaving] = useState(false);
   const [tipOpen, setTipOpen] = useState(true);
   const [taskOpen, setTaskOpen] = useState(false);
+  const [correcting, setCorrecting] = useState<DealTask | null>(null);
   const [contactOpen, setContactOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -119,6 +133,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
     setTitle(current.title);
     setValue(String(current.value ?? ""));
     setCloseDate((current.expected_close_date ?? "").slice(0, 10));
+    setClosedDate(localDateKey(current.closed_at));
     setOwnerId(current.assigned_to ?? "");
     const embeddedPipeline = current.pipeline;
     const pipe = Array.isArray(embeddedPipeline) ? embeddedPipeline[0] : embeddedPipeline;
@@ -155,6 +170,14 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   const pipelineName = pipeline?.name || t("none");
   const openTasks = tasks.filter((task) => !task.done_at && !task.cancelled_at);
   const isNew = deal ? daysSince(deal.created_at) < 2 : false;
+  // Only the owner of the deal or a gestor+ can change an open negotiation.
+  const isManager = accountRole ? hasMinRole(accountRole, "gestor") : false;
+  const isAdmin = accountRole ? hasMinRole(accountRole, "admin") : false;
+  const canEditDeal = Boolean(deal) && (isManager || deal?.assigned_to === profile?.id);
+  const isClosedDeal = deal?.status === "won" || deal?.status === "lost";
+  // Closed sales (won/lost) are changed only by admin and above.
+  const canEditSale = isClosedDeal ? isAdmin : canEditDeal;
+  const canEditTask = (task: DealTask) => canEditDeal || task.assignee_id === profile?.id;
 
   async function record(kind: string, message: string) {
     if (!deal?.account_id) return;
@@ -168,7 +191,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   }
 
   async function save(patch: Record<string, unknown>) {
-    if (!deal) return;
+    if (!deal || !canEditDeal) return;
     const { error } = await supabase
       .from("deals")
       .update({ ...patch, updated_at: new Date().toISOString() })
@@ -181,8 +204,34 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
     void load();
   }
 
+  async function saveSaleField(
+    field: "value" | "expected_close_date" | "closed_at",
+    next: string | number | null,
+    previousText: string,
+    nextText: string,
+    label: string,
+  ) {
+    if (!deal || !canEditSale || previousText === nextText) return;
+    const { error } = await supabase
+      .from("deals")
+      .update({ [field]: next, updated_at: new Date().toISOString() })
+      .eq("id", deal.id);
+    if (error) {
+      toast.error(t("saveFailed"));
+      return;
+    }
+    if (isClosedDeal) {
+      await record(
+        "sale",
+        t("saleFieldChanged", { name: actor, field: label, from: previousText || t("none"), to: nextText || t("none") }),
+      );
+    }
+    toast.success(t("saved"));
+    void load();
+  }
+
   async function moveStage(next: PipelineStage) {
-    if (!deal || next.id === deal.stage_id || busy) return;
+    if (!deal || !canEditDeal || next.id === deal.stage_id || busy) return;
     setBusy(true);
     const { error } = await supabase
       .from("deals")
@@ -202,7 +251,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   }
 
   async function saveCompany() {
-    if (!contact || companySaving) return;
+    if (!contact || companySaving || !canEditDeal) return;
     const name = companyName.trim();
     if (!name) return;
     setCompanySaving(true);
@@ -227,6 +276,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   }
 
   async function cancelTask(taskId: string) {
+    if (!canEditTask(tasks.find((item) => item.id === taskId) ?? ({} as DealTask))) return;
     const { error } = await supabase
       .from("deal_tasks")
       .update({ cancelled_at: new Date().toISOString() })
@@ -240,6 +290,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   }
 
   async function completeTask(taskId: string) {
+    if (!canEditTask(tasks.find((item) => item.id === taskId) ?? ({} as DealTask))) return;
     const { error } = await supabase
       .from("deal_tasks")
       .update({ done_at: new Date().toISOString() })
@@ -253,7 +304,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   }
 
   async function toggleProduct(name: string) {
-    if (!deal) return;
+    if (!deal || !canEditDeal) return;
     const current = Array.isArray(deal.products) ? deal.products : [];
     const next = current.includes(name)
       ? current.filter((item) => item !== name)
@@ -267,7 +318,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
   }
 
   async function mark(status: "won" | "lost", reason?: string) {
-    if (!deal || busy) return;
+    if (!deal || !canEditDeal || busy) return;
     const justification = reason?.trim() ?? "";
     if (status === "lost" && !justification) {
       toast.error(t("reasonRequired"));
@@ -367,7 +418,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            disabled={busy}
+            disabled={busy || !canEditDeal}
             onClick={() => {
               setLossReason(deal.lost_reason ?? "");
               setLossOpen(true);
@@ -376,7 +427,11 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
             <ThumbsDown className="size-4" />
             {t("markLost")}
           </Button>
-          <Button className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={busy} onClick={() => void mark("won")}>
+          <Button
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
+            disabled={busy || !canEditDeal}
+            onClick={() => void mark("won")}
+          >
             <ThumbsUp className="size-4" />
             {t("markWon")}
           </Button>
@@ -390,7 +445,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
             <button
               key={item.id}
               type="button"
-              disabled={busy}
+              disabled={busy || !canEditDeal}
               onClick={() => void moveStage(item)}
               className={`rounded-md px-3 py-2 text-xs font-medium ${
                 active ? "bg-sky-500 text-white" : "bg-muted text-muted-foreground hover:bg-muted/70"
@@ -403,6 +458,12 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
         })}
       </div>
 
+      {canEditDeal ? null : (
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+          {t("readOnlyHint")}
+        </p>
+      )}
+
       <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
         <div className="space-y-3">
           <section className="space-y-3 rounded-xl bg-muted/40 p-4 text-sm">
@@ -410,6 +471,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
             <Field label={t("name")}>
               <Input
                 value={title}
+                disabled={!canEditDeal}
                 onChange={(event) => setTitle(event.target.value)}
                 onBlur={() => {
                   if (title.trim() && title.trim() !== deal.title) void save({ title: title.trim() });
@@ -448,19 +510,56 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
             <Field label={t("closeForecast")}>
               <BrDateInput
                 value={closeDate}
+                disabled={!canEditSale}
                 onValueChange={setCloseDate}
-                onCommit={(iso) => void save({ expected_close_date: iso || null })}
+                onCommit={(iso) =>
+                  void saveSaleField(
+                    "expected_close_date",
+                    iso || null,
+                    formatIsoAsBrDate(deal.expected_close_date?.slice(0, 10)),
+                    formatIsoAsBrDate(iso),
+                    t("closeForecast"),
+                  )
+                }
                 className="h-8 bg-background"
               />
             </Field>
+            {isClosedDeal ? (
+              <Field label={t("closedAt")}>
+                <BrDateInput
+                  value={closedDate}
+                  disabled={!isAdmin}
+                  onValueChange={setClosedDate}
+                  onCommit={(iso) =>
+                    void saveSaleField(
+                      "closed_at",
+                      iso ? new Date(`${iso}T12:00:00`).toISOString() : null,
+                      formatIsoAsBrDate(localDateKey(deal.closed_at)),
+                      formatIsoAsBrDate(iso),
+                      t("closedAt"),
+                    )
+                  }
+                  className="h-8 bg-background"
+                />
+              </Field>
+            ) : null}
             <Field label={t("createdAt")}>
               <span>{formatDateTimePt(deal.created_at)}</span>
             </Field>
             <Field label={t("totalValue")}>
               <BrMoneyInput
                 value={Number(value) || 0}
+                disabled={!canEditSale}
                 onValueChange={(amount) => setValue(String(amount ?? 0))}
-                onCommit={(amount) => void save({ value: amount ?? 0 })}
+                onCommit={(amount) =>
+                  void saveSaleField(
+                    "value",
+                    amount ?? 0,
+                    formatBrMoney(Number(deal.value) || 0),
+                    formatBrMoney(amount ?? 0),
+                    t("totalValue"),
+                  )
+                }
                 className="h-8 bg-background"
               />
             </Field>
@@ -477,7 +576,13 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
             ) : (
               <p className="text-xs text-muted-foreground">{t("noContact")}</p>
             )}
-            <Button variant="ghost" size="sm" className="text-sky-700" onClick={() => setContactOpen(true)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-sky-700"
+              disabled={!canEditDeal}
+              onClick={() => setContactOpen(true)}
+            >
               <Plus className="size-3.5" />
               {t("addContact")}
             </Button>
@@ -486,7 +591,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
           <section className="space-y-2 rounded-xl bg-muted/40 p-4 text-sm">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-semibold">{t("company")}</h2>
-              {contact ? (
+              {contact && canEditDeal ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -517,6 +622,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
               <span className="text-muted-foreground">{t("owner")}</span>
               <Select
                 value={ownerId || "none"}
+                disabled={!canEditDeal}
                 onValueChange={(next) => {
                   const id = !next || next === "none" ? "" : next;
                   setOwnerId(id);
@@ -543,7 +649,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
           <section>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-sm font-semibold">{t("upcomingTasks")}</h2>
-              <Button size="sm" variant="outline" onClick={() => setTaskOpen(true)}>
+              <Button size="sm" variant="outline" disabled={!canEditDeal} onClick={() => setTaskOpen(true)}>
                 <Plus className="size-3.5" />
                 {t("createTask")}
               </Button>
@@ -556,8 +662,13 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
                     : "border-sky-500/40 bg-sky-500/10"
                 }`}
               >
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium">{openTasks[0].title}</p>
+                  {openTasks[0].description ? (
+                    <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">
+                      {openTasks[0].description}
+                    </p>
+                  ) : null}
                   <p
                     className={`text-xs ${
                       new Date(openTasks[0].due_at).getTime() < Date.now()
@@ -576,6 +687,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
                     type="button"
                     size="sm"
                     variant="outline"
+                    disabled={!canEditTask(openTasks[0])}
                     onClick={() => void cancelTask(openTasks[0].id)}
                   >
                     {tTasks("cancelTask")}
@@ -584,6 +696,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
                     type="button"
                     size="sm"
                     variant="outline"
+                    disabled={!canEditTask(openTasks[0])}
                     onClick={() => void completeTask(openTasks[0].id)}
                   >
                     <Check className="size-3.5" />
@@ -634,6 +747,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
                         <input
                           type="checkbox"
                           checked={selected}
+                          disabled={!canEditDeal}
                           onChange={() => void toggleProduct(name)}
                           className="size-4 accent-sky-600"
                         />
@@ -645,6 +759,8 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
               </ul>
             </div>
           ) : tab === "history" ? (
+            <div className="space-y-6">
+            <DealConversations deal={deal} profiles={profiles} />
             <ol className="space-y-3 border-l border-border pl-4">
               {history.length === 0 ? (
                 <li className="text-sm text-muted-foreground">{t("noHistory")}</li>
@@ -660,6 +776,7 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
                 ))
               )}
             </ol>
+            </div>
           ) : (
             <ul className="space-y-2">
               {tasks.length === 0 ? (
@@ -694,6 +811,11 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
                           >
                             {task.title}
                           </p>
+                          {task.description ? (
+                            <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">
+                              {task.description}
+                            </p>
+                          ) : null}
                           <p
                             className={`text-xs ${
                               done
@@ -718,17 +840,36 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
                           </p>
                         </div>
                         {done ? (
-                          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-400">
-                            <Check className="size-3.5" />
-                            {tTasks("statusDone")}
-                          </span>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400">
+                              <Check className="size-3.5" />
+                              {tTasks("statusDone")}
+                            </span>
+                            {canEditTask(task) ? (
+                              <Button type="button" size="sm" variant="outline" onClick={() => setCorrecting(task)}>
+                                {tDealTasks("correctButton")}
+                              </Button>
+                            ) : null}
+                          </div>
                         ) : null}
                         {open ? (
                           <div className="flex shrink-0 gap-2">
-                            <Button type="button" size="sm" variant="outline" onClick={() => void cancelTask(task.id)}>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={!canEditTask(task)}
+                              onClick={() => void cancelTask(task.id)}
+                            >
                               {tTasks("cancelTask")}
                             </Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => void completeTask(task.id)}>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={!canEditTask(task)}
+                              onClick={() => void completeTask(task.id)}
+                            >
                               <Check className="size-3.5" />
                               {tTasks("complete")}
                             </Button>
@@ -749,6 +890,17 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
         deal={deal}
         deals={[deal]}
         profiles={profiles}
+        onSaved={() => void load()}
+      />
+      <DealTaskForm
+        open={correcting !== null}
+        onOpenChange={(next) => {
+          if (!next) setCorrecting(null);
+        }}
+        deal={deal}
+        deals={[deal]}
+        profiles={profiles}
+        correctTask={correcting}
         onSaved={() => void load()}
       />
       <ContactForm

@@ -240,11 +240,11 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
         ) : members.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("empty")}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
+          <div>
+            <table className="w-full table-fixed text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="pb-2 pr-3 font-medium">{t("seller")}</th>
+                  <th className="w-[34%] pb-2 pr-3 font-medium">{t("seller")}</th>
                   {columns.map((col) => (
                     <th key={col.key} className="pb-2 pr-3 font-medium">
                       {col.label}
@@ -268,7 +268,7 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
                           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-foreground">
                             {initials(name)}
                           </span>
-                          <span className="truncate font-medium text-foreground">{name}</span>
+                          <span className="min-w-0 truncate font-medium text-foreground">{name}</span>
                         </div>
                       </td>
                       {columns.map((col) => {
@@ -282,7 +282,7 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
                               min={0}
                               step={col.step}
                               aria-label={`${col.label} — ${name}`}
-                              placeholder={String(fallback)}
+                              placeholder={fallback === 0 ? t("noGoal") : String(fallback)}
                               value={drafts[member.id]?.[col.key] ?? ""}
                               onChange={(e) => {
                                 const next = e.target.value;
@@ -299,7 +299,7 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
                                 }
                               }}
                               className={cn(
-                                "h-8 w-24 rounded-md border bg-muted px-2 text-sm tabular-nums text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-ring focus:ring-2 focus:ring-ring/30",
+                                "h-8 w-full min-w-0 rounded-md border bg-muted px-2 text-sm tabular-nums text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-ring focus:ring-2 focus:ring-ring/30",
                                 isCustom ? "border-primary/50" : "border-transparent",
                               )}
                             />
@@ -334,7 +334,8 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
                   <td className="pt-3 pr-3 font-medium text-foreground">{t("team", { count: members.length })}</td>
                   {columns.map((col) => (
                     <td key={col.key} className="pt-3 pr-3 tabular-nums">
-                      {totals[col.key].toLocaleString("pt-BR")}
+                      {/* Only calls add up to a team total. */}
+                      {col.key === "callsPerDay" ? totals[col.key].toLocaleString("pt-BR") : ""}
                     </td>
                   ))}
                   <td />

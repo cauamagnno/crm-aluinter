@@ -12,6 +12,7 @@ export function BrDateInput({
   className,
   placeholder = "dd/mm/aaaa",
   "aria-label": ariaLabel,
+  disabled = false,
 }: {
   value: string;
   onValueChange: (iso: string) => void;
@@ -19,6 +20,7 @@ export function BrDateInput({
   className?: string;
   placeholder?: string;
   "aria-label"?: string;
+  disabled?: boolean;
 }) {
   const [text, setText] = useState(() => formatIsoAsBrDate(value));
 
@@ -35,6 +37,7 @@ export function BrDateInput({
       placeholder={placeholder}
       aria-label={ariaLabel}
       value={text}
+      disabled={disabled}
       className={className}
       onChange={(event) => {
         const next = maskBrDate(event.target.value);

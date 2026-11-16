@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   CONVERSATION_SELECT,
   matchesContactFilters,
+  normalizeConversation,
   normalizeConversations,
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,7 @@ import { Search, ChevronDown, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -37,6 +39,8 @@ interface ConversationListProps {
   resyncToken?: number;
 }
 
+const PAGE_SIZE = 40;
+
 const STATUS_COLORS: Record<ConversationStatus, string> = {
   open: "bg-primary",
   pending: "bg-amber-500",
@@ -46,6 +50,8 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 
 type InboxFilter = ConversationStatus | "all" | "unread";
+
+const URL_STATUSES: readonly InboxFilter[] = ["open", "pending", "closed"];
 
 export function ConversationList({
   activeConversationId,
@@ -64,9 +70,23 @@ export function ConversationList({
     { label: t("filterClosed"), value: "closed" },
   ], [t]);
 
+  // Deep links from the dashboard: ?status=open opens that status, and
+  // ?agent=<auth user id> keeps only that agent's conversations.
+  const searchParams = useSearchParams();
+  const agentParam = searchParams.get("agent");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<InboxFilter>("all");
+  const [filter, setFilter] = useState<InboxFilter>(() => {
+    const status = searchParams.get("status") as InboxFilter | null;
+    return status && URL_STATUSES.includes(status) ? status : "all";
+  });
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [companies, setCompanies] = useState<string[]>([]);
+  const cursorRef = useRef<string | null>(null);
+  const conversationsRef = useRef(conversations);
+  const searchParamsRef = useRef(searchParams);
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
   // matches if its contact carries any selected tag), consistent with
   // Broadcast audience filtering. Company is an exact match on the field.
@@ -89,43 +109,140 @@ export function ConversationList({
   const onConversationsLoadedRef = useRef(onConversationsLoaded);
   useEffect(() => {
     onConversationsLoadedRef.current = onConversationsLoaded;
+    conversationsRef.current = conversations;
+    searchParamsRef.current = searchParams;
   });
 
   useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(handle);
+  }, [search]);
+
+  const loadPage = useCallback(async (cursor: string | null) => {
     const supabase = createClient();
+    let contactIds: string[] | null = null;
+    const intersect = (current: string[] | null, next: string[]) =>
+      current ? next.filter((id) => current.includes(id)) : next;
+    const token = debouncedSearch.replace(/[,()]/g, " ").trim();
+    if (token) {
+      const { data } = await supabase
+        .from("contacts")
+        .select("id")
+        .or(`name.ilike.%${token}%,phone.ilike.%${token}%,company.ilike.%${token}%`)
+        .limit(300);
+      contactIds = intersect(contactIds, ((data ?? []) as { id: string }[]).map((row) => row.id));
+    }
+    if (selectedCompany) {
+      const { data } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("company", selectedCompany)
+        .limit(500);
+      contactIds = intersect(contactIds, ((data ?? []) as { id: string }[]).map((row) => row.id));
+    }
+    if (selectedTagIds.length > 0) {
+      const { data } = await supabase
+        .from("contact_tags")
+        .select("contact_id")
+        .in("tag_id", selectedTagIds)
+        .limit(500);
+      const ids = [
+        ...new Set(((data ?? []) as { contact_id: string }[]).map((row) => row.contact_id)),
+      ];
+      contactIds = intersect(contactIds, ids);
+    }
+    if (contactIds && contactIds.length === 0 && !token) {
+      return { rows: [] as Conversation[], cursor: null, hasMore: false };
+    }
+
+    let query = supabase
+      .from("conversations")
+      .select(CONVERSATION_SELECT)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(PAGE_SIZE);
+    if (filter === "unread") query = query.gt("unread_count", 0);
+    else if (filter !== "all") query = query.eq("status", filter);
+    if (agentParam) query = query.eq("assigned_agent_id", agentParam);
+    if (cursor) query = query.lt("last_message_at", cursor);
+    if (token) {
+      const parts = [`last_message_text.ilike.%${token}%`];
+      if (contactIds && contactIds.length > 0) {
+        parts.push(`contact_id.in.(${contactIds.join(",")})`);
+      }
+      query = query.or(parts.join(","));
+    } else if (contactIds) {
+      query = query.in("contact_id", contactIds);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("Failed to fetch conversations:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return { rows: [] as Conversation[], cursor, hasMore: false, error: true as const };
+    }
+    const rows = normalizeConversations(data ?? []);
+    const lastAt = rows[rows.length - 1]?.last_message_at ?? null;
+    return {
+      rows,
+      cursor: lastAt,
+      hasMore: rows.length === PAGE_SIZE && Boolean(lastAt),
+    };
+  }, [agentParam, debouncedSearch, filter, selectedCompany, selectedTagIds]);
+
+  useEffect(() => {
     let cancelled = false;
-
+    setLoading(true);
     (async () => {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select(CONVERSATION_SELECT)
-        .order("last_message_at", { ascending: false });
-
+      const page = await loadPage(null);
       if (cancelled) return;
-
-      if (error) {
-        // Supabase errors have non-enumerable properties — log fields explicitly
-        console.error("Failed to fetch conversations:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
+      if ("error" in page && page.error) {
         setLoading(false);
         return;
       }
-
-      onConversationsLoadedRef.current(normalizeConversations(data ?? []));
+      let rows = page.rows;
+      const deepId = searchParamsRef.current.get("c");
+      if (deepId && !rows.some((row) => row.id === deepId)) {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("conversations")
+          .select(CONVERSATION_SELECT)
+          .eq("id", deepId)
+          .maybeSingle();
+        if (data) rows = [normalizeConversation(data), ...rows];
+      }
+      cursorRef.current = page.cursor;
+      setHasMore(page.hasMore);
+      onConversationsLoadedRef.current(rows);
       setLoading(false);
     })();
-
     return () => {
       cancelled = true;
     };
-    // `resyncToken` is included so the parent can force a refetch when
-    // the realtime channel reconnects or the tab regains focus — catches
-    // up on any events sent while the WS was disconnected or throttled.
-  }, [resyncToken]);
+    // resyncToken forces a fresh first page after a reconnect or a tab focus.
+  }, [loadPage, resyncToken]);
+
+  const loadMore = useCallback(async () => {
+    if (!cursorRef.current || loadingMore) return;
+    setLoadingMore(true);
+    const page = await loadPage(cursorRef.current);
+    if ("error" in page && page.error) {
+      setLoadingMore(false);
+      return;
+    }
+    const seen = new Set(conversationsRef.current.map((conversation) => conversation.id));
+    const merged = [...conversationsRef.current];
+    for (const row of page.rows) {
+      if (!seen.has(row.id)) merged.push(row);
+    }
+    cursorRef.current = page.cursor;
+    setHasMore(page.hasMore);
+    onConversationsLoadedRef.current(merged);
+    setLoadingMore(false);
+  }, [loadPage, loadingMore]);
 
   // Tag definitions for the filter picker — loaded once so labels/colours
   // stay stable regardless of which conversations happen to be loaded.
@@ -141,17 +258,29 @@ export function ConversationList({
     };
   }, []);
 
-  // Company options are derived from the loaded conversations — there's no
-  // separate companies table, and only companies with a live conversation
-  // are worth offering as an inbox filter.
-  const companies = useMemo(() => {
-    const set = new Set<string>();
-    for (const c of conversations) {
-      const co = c.contact?.company?.trim();
-      if (co) set.add(co);
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [conversations]);
+  // Company options come from contacts, not from the loaded page, so the
+  // filter still lists companies whose conversation is not on screen yet.
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("contacts")
+        .select("company")
+        .not("company", "is", null)
+        .limit(400);
+      if (cancelled) return;
+      const names = new Set<string>();
+      for (const row of (data ?? []) as { company: string | null }[]) {
+        const company = row.company?.trim();
+        if (company) names.add(company);
+      }
+      setCompanies(Array.from(names).sort((a, b) => a.localeCompare(b)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const tagsById = useMemo(() => {
     const m = new Map<string, Tag>();
@@ -166,6 +295,10 @@ export function ConversationList({
       result = result.filter((c) => c.unread_count > 0);
     } else if (filter !== "all") {
       result = result.filter((c) => c.status === filter);
+    }
+
+    if (agentParam) {
+      result = result.filter((c) => c.assigned_agent_id === agentParam);
     }
 
     // Contact-based filters (tags via OR logic, exact company match).
@@ -189,7 +322,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, selectedTagIds, selectedCompany]);
+  }, [conversations, filter, agentParam, search, selectedTagIds, selectedCompany]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -417,6 +550,16 @@ export function ConversationList({
                 t={t}
               />
             ))}
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                className="px-4 py-3 text-center text-xs font-medium text-primary hover:bg-muted disabled:opacity-60"
+              >
+                {loadingMore ? "…" : t("loadMore")}
+              </button>
+            )}
           </div>
         )}
       </ScrollArea>
