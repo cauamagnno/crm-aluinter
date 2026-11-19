@@ -110,7 +110,7 @@ export function GoalsSettings() {
   }
 
   return (
-    <section className="max-w-2xl animate-in fade-in-50 duration-200">
+    <section className="max-w-5xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead title={t("title")} description={t("description")} />
       <div className="space-y-4">
         {canEdit && !loading ? <SellerGoalsPanel defaults={goals} /> : null}

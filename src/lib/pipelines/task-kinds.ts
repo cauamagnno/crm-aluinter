@@ -1,4 +1,21 @@
 import type { Deal, DealTask } from "@/types"
+import { formatDateTimePt } from "@/lib/pt-format"
+
+/** The task as it should appear in history: subject, kind, schedule, owner and description. */
+export function formatTaskIdentity(input: {
+  title: string
+  kind: string
+  description?: string | null
+  dueAt?: string | null
+  assignee?: string | null
+}) {
+  const title = input.title.trim() || "—"
+  const kind = input.kind.trim() || "—"
+  const when = input.dueAt ? formatDateTimePt(input.dueAt) || "—" : "—"
+  const assignee = input.assignee?.trim() || "—"
+  const description = input.description?.trim() || "—"
+  return `${title} (${kind}). Agendada para ${when}. Responsável: ${assignee}. Descrição: ${description}`
+}
 
 export const TASK_KINDS = [
   "ligacao",

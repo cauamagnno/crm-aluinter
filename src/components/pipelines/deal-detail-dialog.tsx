@@ -22,7 +22,7 @@ import { dealStatusPatch } from "@/lib/pipelines/close-deal";
 import { formatCurrency } from "@/lib/currency";
 import { formatBrMoney, formatDatePt, formatIsoAsBrDate } from "@/lib/pt-format";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
-import { taskKindMessageKey, taskSeller } from "@/lib/pipelines/task-kinds";
+import { formatTaskIdentity, taskKindMessageKey, taskSeller } from "@/lib/pipelines/task-kinds";
 import type { Deal, DealStatus, DealTask, PipelineStage, Profile } from "@/types";
 import { Button } from "@/components/ui/button";
 import { BrDateInput } from "@/components/ui/br-date-input";
@@ -239,12 +239,31 @@ export function DealDetailDialog({
       toast.error(tTasks("completeFailed"));
       return;
     }
+    const assignee = profiles.find((person) => person.id === task.assignee_id);
+    const name = profile?.full_name?.trim() || profile?.email || "";
+    const message = `${tTasks("completedLogged", { name })} ${formatTaskIdentity({
+      title: task.title,
+      kind: tTasks(taskKindMessageKey(task.kind)),
+      description: task.description,
+      dueAt: task.due_at,
+      assignee: assignee?.full_name?.trim() || assignee?.email,
+    })}`;
+    if (profile?.id) {
+      const { error: historyError } = await supabase.from("deal_events").insert({
+        account_id: task.account_id,
+        deal_id: task.deal_id,
+        actor_id: profile.id,
+        kind: "task_completed",
+        message,
+      });
+      if (historyError) console.error(historyError);
+    }
     setTasks((prev) =>
       prev.map((item) =>
         item.id === task.id ? { ...item, done_at: new Date().toISOString() } : item,
       ),
     );
-    toast.success(tTasks("completed"));
+    toast.success(message);
     onSaved();
   }
 

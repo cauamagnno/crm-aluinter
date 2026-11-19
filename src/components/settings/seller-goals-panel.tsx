@@ -7,6 +7,8 @@ import { useTranslations } from "next-intl";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { formatBrMoney } from "@/lib/pt-format";
+import { BrMoneyInput } from "@/components/ui/br-money-input";
 import type { DashboardGoals } from "@/lib/dashboard/goals";
 import {
   EMPTY_SELLER_GOAL,
@@ -221,11 +223,11 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
     );
   }, [members, saved, defaults]);
 
-  const columns: { key: SellerGoalField; label: string; step: string }[] = [
-    { key: "callsPerDay", label: t("calls"), step: "1" },
-    { key: "whatsappPerDay", label: t("whatsapp"), step: "1" },
-    { key: "emailsPerDay", label: t("emails"), step: "1" },
-    { key: "revenuePerMonth", label: t("revenue"), step: "1000" },
+  const columns: { key: SellerGoalField; label: string; unit: string; step: string; width: string }[] = [
+    { key: "callsPerDay", label: t("calls"), unit: t("perDay"), step: "1", width: "w-32" },
+    { key: "whatsappPerDay", label: t("whatsapp"), unit: t("perDay"), step: "1", width: "w-32" },
+    { key: "emailsPerDay", label: t("emails"), unit: t("perDay"), step: "1", width: "w-32" },
+    { key: "revenuePerMonth", label: t("revenue"), unit: t("perMonth"), step: "1000", width: "w-52" },
   ];
 
   return (
@@ -240,17 +242,18 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
         ) : members.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("empty")}</p>
         ) : (
-          <div>
-            <table className="w-full table-fixed text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[52rem] border-separate border-spacing-x-4 text-sm">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="w-[34%] pb-2 pr-3 font-medium">{t("seller")}</th>
+                <tr className="text-left text-muted-foreground">
+                  <th className="w-44 pb-3 font-medium text-foreground">{t("seller")}</th>
                   {columns.map((col) => (
-                    <th key={col.key} className="pb-2 pr-3 font-medium">
-                      {col.label}
+                    <th key={col.key} className={cn("pb-3 align-bottom font-medium", col.width)}>
+                      <span className="block text-foreground">{col.label}</span>
+                      <span className="block text-xs font-normal">{col.unit}</span>
                     </th>
                   ))}
-                  <th className="w-16 pb-2" aria-hidden />
+                  <th className="w-10 pb-3" aria-hidden />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -263,7 +266,7 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
                     : false;
                   return (
                     <tr key={member.id}>
-                      <td className="py-2 pr-3">
+                      <td className="py-3">
                         <div className="flex items-center gap-2.5">
                           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-foreground">
                             {initials(name)}
@@ -274,14 +277,42 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
                       {columns.map((col) => {
                         const isCustom = override?.[col.key] != null;
                         const fallback = defaults[col.key];
+                        if (col.key === "revenuePerMonth") {
+                          const draft = drafts[member.id]?.[col.key] ?? "";
+                          const parsed = draft.trim() === "" ? null : Number(draft);
+                          return (
+                            <td key={col.key} className="py-3">
+                              <BrMoneyInput
+                                allowEmpty
+                                value={parsed}
+                                placeholder={fallback === 0 ? t("noGoal") : formatBrMoney(fallback)}
+                                onValueChange={(next) => {
+                                  const raw = next == null ? "" : String(next);
+                                  setDrafts((d) => ({
+                                    ...d,
+                                    [member.id]: { ...d[member.id], [col.key]: raw },
+                                  }));
+                                  schedule(member.id, col.key, raw);
+                                }}
+                                onCommit={(next) =>
+                                  void commit(member.id, col.key, next == null ? "" : String(next))
+                                }
+                                className={cn(
+                                  "h-9 rounded-md border bg-muted pr-3 text-sm tabular-nums text-foreground placeholder:text-muted-foreground/70",
+                                  isCustom ? "border-primary/50" : "border-transparent",
+                                )}
+                              />
+                            </td>
+                          );
+                        }
                         return (
-                          <td key={col.key} className="py-2 pr-3">
+                          <td key={col.key} className="py-3">
                             <input
                               type="number"
                               inputMode="decimal"
                               min={0}
                               step={col.step}
-                              aria-label={`${col.label} — ${name}`}
+                              aria-label={`${col.label} ${col.unit} — ${name}`}
                               placeholder={fallback === 0 ? t("noGoal") : String(fallback)}
                               value={drafts[member.id]?.[col.key] ?? ""}
                               onChange={(e) => {
@@ -299,14 +330,14 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
                                 }
                               }}
                               className={cn(
-                                "h-8 w-full min-w-0 rounded-md border bg-muted px-2 text-sm tabular-nums text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-ring focus:ring-2 focus:ring-ring/30",
+                                "h-9 w-full rounded-md border bg-muted px-3 text-sm tabular-nums text-foreground outline-none transition-colors [appearance:textfield] placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/30 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
                                 isCustom ? "border-primary/50" : "border-transparent",
                               )}
                             />
                           </td>
                         );
                       })}
-                      <td className="py-2 text-right">
+                      <td className="py-3 text-right">
                         <span className="inline-flex h-7 items-center justify-end gap-1">
                           {state === "saving" ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label={t("saving")} />
@@ -331,9 +362,9 @@ export function SellerGoalsPanel({ defaults }: { defaults: DashboardGoals }) {
               </tbody>
               <tfoot>
                 <tr className="border-t border-border text-xs text-muted-foreground">
-                  <td className="pt-3 pr-3 font-medium text-foreground">{t("team", { count: members.length })}</td>
+                  <td className="pt-3 font-medium text-foreground">{t("team", { count: members.length })}</td>
                   {columns.map((col) => (
-                    <td key={col.key} className="pt-3 pr-3 tabular-nums">
+                    <td key={col.key} className="pt-3 tabular-nums">
                       {/* Only calls add up to a team total. */}
                       {col.key === "callsPerDay" ? totals[col.key].toLocaleString("pt-BR") : ""}
                     </td>

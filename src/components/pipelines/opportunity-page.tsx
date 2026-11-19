@@ -33,6 +33,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { hasMinRole } from "@/lib/auth/roles";
 import { dealStatusPatch } from "@/lib/pipelines/close-deal";
+import { formatTaskIdentity, taskKindMessageKey } from "@/lib/pipelines/task-kinds";
 import { dealDisplayStatus } from "@/lib/pipelines/status";
 import { formatBrMoney, formatDateTimePt, formatIsoAsBrDate } from "@/lib/pt-format";
 import type { Deal, DealTask, Pipeline, PipelineStage, Profile } from "@/types";
@@ -275,8 +276,20 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
     void load();
   }
 
+  function describeTask(task: DealTask) {
+    const assignee = profiles.find((person) => person.id === task.assignee_id);
+    return formatTaskIdentity({
+      title: task.title,
+      kind: tDealTasks(taskKindMessageKey(task.kind)),
+      description: task.description,
+      dueAt: task.due_at,
+      assignee: assignee?.full_name?.trim() || assignee?.email,
+    });
+  }
+
   async function cancelTask(taskId: string) {
-    if (!canEditTask(tasks.find((item) => item.id === taskId) ?? ({} as DealTask))) return;
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task || !canEditTask(task)) return;
     const { error } = await supabase
       .from("deal_tasks")
       .update({ cancelled_at: new Date().toISOString() })
@@ -285,12 +298,15 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
       toast.error(tTasks("cancelFailed"));
       return;
     }
-    toast.success(tTasks("taskCancelled"));
+    const message = `${tDealTasks("cancelledLogged", { name: actor })} ${describeTask(task)}`;
+    await record("task_cancelled", message);
+    toast.success(message);
     void load();
   }
 
   async function completeTask(taskId: string) {
-    if (!canEditTask(tasks.find((item) => item.id === taskId) ?? ({} as DealTask))) return;
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task || !canEditTask(task)) return;
     const { error } = await supabase
       .from("deal_tasks")
       .update({ done_at: new Date().toISOString() })
@@ -299,7 +315,9 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
       toast.error(tTasks("completeFailed"));
       return;
     }
-    toast.success(tTasks("completed"));
+    const message = `${tDealTasks("completedLogged", { name: actor })} ${describeTask(task)}`;
+    await record("task_completed", message);
+    toast.success(message);
     void load();
   }
 
@@ -825,6 +843,8 @@ export function OpportunityPage({ dealId }: { dealId: string }) {
                                   : "text-muted-foreground"
                             }`}
                           >
+                            {tDealTasks(taskKindMessageKey(task.kind))}
+                            {" · "}
                             {done
                               ? tTasks("statusDone")
                               : task.cancelled_at

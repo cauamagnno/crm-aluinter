@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Check, Loader2, Plus } from "lucide-react";
@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { fromDateInputValue, startOfNextLocalDay } from "@/lib/dashboard/date-utils";
 import { formatDateTimePt } from "@/lib/pt-format";
+import { formatTaskIdentity, taskKindMessageKey } from "@/lib/pipelines/task-kinds";
 import { SellerPicker } from "@/components/dashboard/seller-picker";
 import { DealTaskForm } from "@/components/pipelines/deal-task-form";
 import { BrDateInput } from "@/components/ui/br-date-input";
@@ -37,6 +38,7 @@ export default function TarefasPage() {
 function TarefasPageInner() {
   const t = useTranslations("Tasks");
   const tTasksForm = useTranslations("Pipelines.tasks");
+  const router = useRouter();
   const searchParams = useSearchParams();
   const scopeVisible = searchParams.get("scope") === "visible";
   const { profile, accountRole, defaultCurrency } = useAuth();
@@ -137,7 +139,37 @@ function TarefasPageInner() {
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  function taskHistoryMessage(task: TaskRow, action: "completedLogged" | "cancelledLogged") {
+    const assignee = profiles.find((person) => person.id === task.assignee_id);
+    const name = profile?.full_name?.trim() || profile?.email || "";
+    const identity = formatTaskIdentity({
+      title: task.title,
+      kind: tTasksForm(taskKindMessageKey(task.kind)),
+      description: task.description,
+      dueAt: task.due_at,
+      assignee: assignee?.full_name?.trim() || assignee?.email,
+    });
+    return `${tTasksForm(action, { name })} ${identity}`;
+  }
+
+  async function recordTaskHistory(
+    task: TaskRow,
+    action: "completedLogged" | "cancelledLogged",
+    kind: "task_completed" | "task_cancelled",
+  ) {
+    if (!profile?.id) return;
+    const { error } = await createClient().from("deal_events").insert({
+      account_id: task.account_id,
+      deal_id: task.deal_id,
+      actor_id: profile.id,
+      kind,
+      message: taskHistoryMessage(task, action),
+    });
+    if (error) console.error(error);
+  }
+
   async function markDone(task: TaskRow) {
+    const message = taskHistoryMessage(task, "completedLogged");
     const supabase = createClient();
     const { error } = await supabase
       .from("deal_tasks")
@@ -147,11 +179,13 @@ function TarefasPageInner() {
       toast.error(t("completeFailed"));
       return;
     }
-    toast.success(t("completed"));
+    await recordTaskHistory(task, "completedLogged", "task_completed");
+    toast.success(message);
     void load();
   }
 
   async function cancelTask(task: TaskRow) {
+    const message = taskHistoryMessage(task, "cancelledLogged");
     const supabase = createClient();
     const { error } = await supabase
       .from("deal_tasks")
@@ -161,7 +195,8 @@ function TarefasPageInner() {
       toast.error(t("cancelFailed"));
       return;
     }
-    toast.success(t("taskCancelled"));
+    await recordTaskHistory(task, "cancelledLogged", "task_cancelled");
+    toast.success(message);
     void load();
   }
 
@@ -283,7 +318,13 @@ function TarefasPageInner() {
                 const late = !task.done_at && !task.cancelled_at && new Date(task.due_at).getTime() < Date.now();
                 const seller = profiles.find((person) => person.id === task.assignee_id);
                 return (
-                  <tr key={task.id} className="border-t border-border">
+                  <tr
+                    key={task.id}
+                    className="cursor-pointer border-t border-border hover:bg-muted/40"
+                    onClick={() => {
+                      if (task.deal_id) router.push(`/pipelines/${task.deal_id}`);
+                    }}
+                  >
                     <td className="px-3 py-2">
                       <p className="font-medium text-foreground">{task.title}</p>
                       {task.description ? (
@@ -323,17 +364,38 @@ function TarefasPageInner() {
                     <td className="px-3 py-2 text-right">
                       {!task.done_at && !task.cancelled_at && (
                         <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => void cancelTask(task)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void cancelTask(task);
+                            }}
+                          >
                             {t("cancelTask")}
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => void markDone(task)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void markDone(task);
+                            }}
+                          >
                             <Check className="h-3.5 w-3.5" />
                             {t("complete")}
                           </Button>
                         </div>
                       )}
                       {task.done_at && !task.cancelled_at && canCorrect(task) && (
-                        <Button size="sm" variant="outline" onClick={() => setCorrecting(task)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setCorrecting(task);
+                          }}
+                        >
                           {tTasksForm("correctButton")}
                         </Button>
                       )}

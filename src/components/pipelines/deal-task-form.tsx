@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { formatTaskIdentity, taskKindMessageKey } from "@/lib/pipelines/task-kinds";
 import type { Deal, DealTask, Profile } from "@/types";
 import { Button } from "@/components/ui/button";
 import { BrDateInput } from "@/components/ui/br-date-input";
@@ -79,13 +80,12 @@ export function DealTaskForm({
     );
   }, [open, deal, deals, profile?.id, correctTask]);
 
-  const kindLabel = (value: string) =>
-    ({
-      ligacao: t("kindCall"),
-      whatsapp: t("kindWhatsapp"),
-      email: t("kindEmail"),
-      visita: t("kindVisita"),
-    })[value] ?? value;
+  const kindLabel = (value: string) => t(taskKindMessageKey(value));
+
+  function assigneeName(id?: string | null) {
+    const person = profiles.find((item) => item.id === id);
+    return person?.full_name?.trim() || person?.email || "";
+  }
 
   const selectedDeal = deals.find((d) => d.id === dealId) ?? deal;
   const contactSource =
@@ -120,21 +120,23 @@ export function DealTaskForm({
       return;
     }
     const name = profile.full_name?.trim() || profile.email || "";
-    const message = [
-      t("correctionLogged", {
-        name,
-        from: `${correctTask.title} (${kindLabel(correctTask.kind)})`,
-        to: `${nextTitle} (${kindLabel(kind)})`,
+    const message = t("correctionLogged", {
+      name,
+      from: formatTaskIdentity({
+        title: correctTask.title,
+        kind: kindLabel(correctTask.kind),
+        description: correctTask.description,
+        dueAt: correctTask.due_at,
+        assignee: assigneeName(correctTask.assignee_id),
       }),
-      descriptionChanged
-        ? t("correctionDescription", {
-            from: correctTask.description?.trim() || "—",
-            to: nextDescription || "—",
-          })
-        : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
+      to: formatTaskIdentity({
+        title: nextTitle,
+        kind: kindLabel(kind),
+        description: nextDescription,
+        dueAt: correctTask.due_at,
+        assignee: assigneeName(correctTask.assignee_id),
+      }),
+    });
     await supabase.from("deal_events").insert({
       account_id: accountId,
       deal_id: correctTask.deal_id,
@@ -143,7 +145,7 @@ export function DealTaskForm({
       message,
     });
     setSaving(false);
-    toast.success(t("corrected"));
+    toast.success(message);
     onOpenChange(false);
     onSaved();
   }
@@ -178,12 +180,13 @@ export function DealTaskForm({
       return;
     }
     const name = profile?.full_name?.trim() || profile?.email || "";
-    const message = [
-      t("createdLogged", { name, title: nextTitle, kind: kindLabel(kind) }),
-      nextDescription ? t("createdDescription", { description: nextDescription }) : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
+    const message = `${t("createdLogged", { name })} ${formatTaskIdentity({
+      title: nextTitle,
+      kind: kindLabel(kind),
+      description: nextDescription,
+      dueAt: dueAt.toISOString(),
+      assignee: assigneeName(assigneeId),
+    })}`;
     const { error: historyError } = await supabase.from("deal_events").insert({
       account_id: accountId,
       deal_id: dealId,
@@ -195,7 +198,7 @@ export function DealTaskForm({
     if (historyError) {
       console.error(historyError);
     }
-    toast.success(t("created"));
+    toast.success(message);
     onOpenChange(false);
     onSaved();
     onCreated?.(dealId);
